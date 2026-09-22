@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
 	"github.com/looplj/axonhub/internal/ent/providerquotastatus"
@@ -365,6 +366,21 @@ func (_c *ChannelCreate) SetProviderQuotaStatus(v *ProviderQuotaStatus) *Channel
 	return _c.SetProviderQuotaStatusID(v.ID)
 }
 
+// AddAccountIDs adds the "accounts" edge to the ChannelAccount entity by IDs.
+func (_c *ChannelCreate) AddAccountIDs(ids ...int) *ChannelCreate {
+	_c.mutation.AddAccountIDs(ids...)
+	return _c
+}
+
+// AddAccounts adds the "accounts" edges to the ChannelAccount entity.
+func (_c *ChannelCreate) AddAccounts(v ...*ChannelAccount) *ChannelCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAccountIDs(ids...)
+}
+
 // Mutation returns the ChannelMutation object of the builder.
 func (_c *ChannelCreate) Mutation() *ChannelMutation {
 	return _c.mutation
@@ -710,6 +726,22 @@ func (_c *ChannelCreate) createSpec() (*Channel, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(providerquotastatus.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.AccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -13,6 +13,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/apikey"
 	"github.com/looplj/axonhub/internal/ent/apikeyprofiletemplate"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
@@ -748,6 +749,19 @@ func (_q *ChannelQuery) collectField(ctx context.Context, oneNode bool, opCtx *g
 				return err
 			}
 			_q.withProviderQuotaStatus = query
+
+		case "accounts":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&ChannelAccountClient{config: _q.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, channelaccountImplementors)...); err != nil {
+				return err
+			}
+			_q.WithNamedAccounts(alias, func(wq *ChannelAccountQuery) {
+				*wq = *query
+			})
 		case "createdAt":
 			if _, ok := fieldSeen[channel.FieldCreatedAt]; !ok {
 				selectedFields = append(selectedFields, channel.FieldCreatedAt)
@@ -907,6 +921,165 @@ func newChannelPaginateArgs(rv map[string]any) *channelPaginateArgs {
 	}
 	if v, ok := rv[whereField].(*ChannelWhereInput); ok {
 		args.opts = append(args.opts, WithChannelFilter(v.Filter))
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (_q *ChannelAccountQuery) CollectFields(ctx context.Context, satisfies ...string) (*ChannelAccountQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return _q, nil
+	}
+	if err := _q.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return _q, nil
+}
+
+func (_q *ChannelAccountQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(channelaccount.Columns))
+		selectedFields = []string{channelaccount.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "channel":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&ChannelClient{config: _q.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, channelImplementors)...); err != nil {
+				return err
+			}
+			_q.withChannel = query
+			if _, ok := fieldSeen[channelaccount.FieldChannelID]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldChannelID)
+				fieldSeen[channelaccount.FieldChannelID] = struct{}{}
+			}
+		case "createdAt":
+			if _, ok := fieldSeen[channelaccount.FieldCreatedAt]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldCreatedAt)
+				fieldSeen[channelaccount.FieldCreatedAt] = struct{}{}
+			}
+		case "updatedAt":
+			if _, ok := fieldSeen[channelaccount.FieldUpdatedAt]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldUpdatedAt)
+				fieldSeen[channelaccount.FieldUpdatedAt] = struct{}{}
+			}
+		case "channelID":
+			if _, ok := fieldSeen[channelaccount.FieldChannelID]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldChannelID)
+				fieldSeen[channelaccount.FieldChannelID] = struct{}{}
+			}
+		case "name":
+			if _, ok := fieldSeen[channelaccount.FieldName]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldName)
+				fieldSeen[channelaccount.FieldName] = struct{}{}
+			}
+		case "identity":
+			if _, ok := fieldSeen[channelaccount.FieldIdentity]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldIdentity)
+				fieldSeen[channelaccount.FieldIdentity] = struct{}{}
+			}
+		case "identityFingerprint":
+			if _, ok := fieldSeen[channelaccount.FieldIdentityFingerprint]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldIdentityFingerprint)
+				fieldSeen[channelaccount.FieldIdentityFingerprint] = struct{}{}
+			}
+		case "authState":
+			if _, ok := fieldSeen[channelaccount.FieldAuthState]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldAuthState)
+				fieldSeen[channelaccount.FieldAuthState] = struct{}{}
+			}
+		case "authErrorCode":
+			if _, ok := fieldSeen[channelaccount.FieldAuthErrorCode]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldAuthErrorCode)
+				fieldSeen[channelaccount.FieldAuthErrorCode] = struct{}{}
+			}
+		case "enabled":
+			if _, ok := fieldSeen[channelaccount.FieldEnabled]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldEnabled)
+				fieldSeen[channelaccount.FieldEnabled] = struct{}{}
+			}
+		case "weight":
+			if _, ok := fieldSeen[channelaccount.FieldWeight]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldWeight)
+				fieldSeen[channelaccount.FieldWeight] = struct{}{}
+			}
+		case "expiresAt":
+			if _, ok := fieldSeen[channelaccount.FieldExpiresAt]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldExpiresAt)
+				fieldSeen[channelaccount.FieldExpiresAt] = struct{}{}
+			}
+		case "lastRefreshAt":
+			if _, ok := fieldSeen[channelaccount.FieldLastRefreshAt]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldLastRefreshAt)
+				fieldSeen[channelaccount.FieldLastRefreshAt] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		_q.Select(selectedFields...)
+	}
+	return nil
+}
+
+type channelaccountPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []ChannelAccountPaginateOption
+}
+
+func newChannelAccountPaginateArgs(rv map[string]any) *channelaccountPaginateArgs {
+	args := &channelaccountPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	if v, ok := rv[orderByField]; ok {
+		switch v := v.(type) {
+		case map[string]any:
+			var (
+				err1, err2 error
+				order      = &ChannelAccountOrder{Field: &ChannelAccountOrderField{}, Direction: entgql.OrderDirectionAsc}
+			)
+			if d, ok := v[directionField]; ok {
+				err1 = order.Direction.UnmarshalGQL(d)
+			}
+			if f, ok := v[fieldField]; ok {
+				err2 = order.Field.UnmarshalGQL(f)
+			}
+			if err1 == nil && err2 == nil {
+				args.opts = append(args.opts, WithChannelAccountOrder(order))
+			}
+		case *ChannelAccountOrder:
+			if v != nil {
+				args.opts = append(args.opts, WithChannelAccountOrder(v))
+			}
+		}
+	}
+	if v, ok := rv[whereField].(*ChannelAccountWhereInput); ok {
+		args.opts = append(args.opts, WithChannelAccountFilter(v.Filter))
 	}
 	return args
 }

@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
 	"github.com/looplj/axonhub/internal/ent/predicate"
@@ -499,6 +500,21 @@ func (_u *ChannelUpdate) SetProviderQuotaStatus(v *ProviderQuotaStatus) *Channel
 	return _u.SetProviderQuotaStatusID(v.ID)
 }
 
+// AddAccountIDs adds the "accounts" edge to the ChannelAccount entity by IDs.
+func (_u *ChannelUpdate) AddAccountIDs(ids ...int) *ChannelUpdate {
+	_u.mutation.AddAccountIDs(ids...)
+	return _u
+}
+
+// AddAccounts adds the "accounts" edges to the ChannelAccount entity.
+func (_u *ChannelUpdate) AddAccounts(v ...*ChannelAccount) *ChannelUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAccountIDs(ids...)
+}
+
 // Mutation returns the ChannelMutation object of the builder.
 func (_u *ChannelUpdate) Mutation() *ChannelMutation {
 	return _u.mutation
@@ -613,6 +629,27 @@ func (_u *ChannelUpdate) RemoveChannelModelPrices(v ...*ChannelModelPrice) *Chan
 func (_u *ChannelUpdate) ClearProviderQuotaStatus() *ChannelUpdate {
 	_u.mutation.ClearProviderQuotaStatus()
 	return _u
+}
+
+// ClearAccounts clears all "accounts" edges to the ChannelAccount entity.
+func (_u *ChannelUpdate) ClearAccounts() *ChannelUpdate {
+	_u.mutation.ClearAccounts()
+	return _u
+}
+
+// RemoveAccountIDs removes the "accounts" edge to ChannelAccount entities by IDs.
+func (_u *ChannelUpdate) RemoveAccountIDs(ids ...int) *ChannelUpdate {
+	_u.mutation.RemoveAccountIDs(ids...)
+	return _u
+}
+
+// RemoveAccounts removes "accounts" edges to ChannelAccount entities.
+func (_u *ChannelUpdate) RemoveAccounts(v ...*ChannelAccount) *ChannelUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAccountIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1070,6 +1107,51 @@ func (_u *ChannelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(providerquotastatus.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAccountsIDs(); len(nodes) > 0 && !_u.mutation.AccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1561,6 +1643,21 @@ func (_u *ChannelUpdateOne) SetProviderQuotaStatus(v *ProviderQuotaStatus) *Chan
 	return _u.SetProviderQuotaStatusID(v.ID)
 }
 
+// AddAccountIDs adds the "accounts" edge to the ChannelAccount entity by IDs.
+func (_u *ChannelUpdateOne) AddAccountIDs(ids ...int) *ChannelUpdateOne {
+	_u.mutation.AddAccountIDs(ids...)
+	return _u
+}
+
+// AddAccounts adds the "accounts" edges to the ChannelAccount entity.
+func (_u *ChannelUpdateOne) AddAccounts(v ...*ChannelAccount) *ChannelUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAccountIDs(ids...)
+}
+
 // Mutation returns the ChannelMutation object of the builder.
 func (_u *ChannelUpdateOne) Mutation() *ChannelMutation {
 	return _u.mutation
@@ -1675,6 +1772,27 @@ func (_u *ChannelUpdateOne) RemoveChannelModelPrices(v ...*ChannelModelPrice) *C
 func (_u *ChannelUpdateOne) ClearProviderQuotaStatus() *ChannelUpdateOne {
 	_u.mutation.ClearProviderQuotaStatus()
 	return _u
+}
+
+// ClearAccounts clears all "accounts" edges to the ChannelAccount entity.
+func (_u *ChannelUpdateOne) ClearAccounts() *ChannelUpdateOne {
+	_u.mutation.ClearAccounts()
+	return _u
+}
+
+// RemoveAccountIDs removes the "accounts" edge to ChannelAccount entities by IDs.
+func (_u *ChannelUpdateOne) RemoveAccountIDs(ids ...int) *ChannelUpdateOne {
+	_u.mutation.RemoveAccountIDs(ids...)
+	return _u
+}
+
+// RemoveAccounts removes "accounts" edges to ChannelAccount entities.
+func (_u *ChannelUpdateOne) RemoveAccounts(v ...*ChannelAccount) *ChannelUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAccountIDs(ids...)
 }
 
 // Where appends a list predicates to the ChannelUpdate builder.
@@ -2162,6 +2280,51 @@ func (_u *ChannelUpdateOne) sqlSave(ctx context.Context) (_node *Channel, err er
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(providerquotastatus.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAccountsIDs(); len(nodes) > 0 && !_u.mutation.AccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   channel.AccountsTable,
+			Columns: []string{channel.AccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelaccount.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

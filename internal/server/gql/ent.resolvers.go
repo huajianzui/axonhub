@@ -129,6 +129,16 @@ func (r *channelResolver) ProviderQuotaStatus(ctx context.Context, obj *ent.Chan
 }
 
 // ID is the resolver for the id field.
+func (r *channelAccountResolver) ID(ctx context.Context, obj *ent.ChannelAccount) (*objects.GUID, error) {
+	panic(fmt.Errorf("not implemented: ID - id"))
+}
+
+// ChannelID is the resolver for the channelID field.
+func (r *channelAccountResolver) ChannelID(ctx context.Context, obj *ent.ChannelAccount) (*objects.GUID, error) {
+	panic(fmt.Errorf("not implemented: ChannelID - channelID"))
+}
+
+// ID is the resolver for the id field.
 func (r *channelModelPriceResolver) ID(ctx context.Context, obj *ent.ChannelModelPrice) (*objects.GUID, error) {
 	return &objects.GUID{
 		Type: ent.TypeChannelModelPrice,
@@ -378,6 +388,11 @@ func (r *queryResolver) Channels(ctx context.Context, after *entgql.Cursor[int],
 		ent.WithChannelOrder(orderBy),
 		ent.WithChannelFilter(where.Filter),
 	)
+}
+
+// ChannelAccounts is the resolver for the channelAccounts field.
+func (r *queryResolver) ChannelAccounts(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelAccountOrder, where *ent.ChannelAccountWhereInput) (*ent.ChannelAccountConnection, error) {
+	panic(fmt.Errorf("not implemented: ChannelAccounts - channelAccounts"))
 }
 
 // ChannelOverrideTemplates is the resolver for the channelOverrideTemplates field.
@@ -977,6 +992,9 @@ func (r *Resolver) APIKeyProfileTemplate() APIKeyProfileTemplateResolver {
 // Channel returns ChannelResolver implementation.
 func (r *Resolver) Channel() ChannelResolver { return &channelResolver{r} }
 
+// ChannelAccount returns ChannelAccountResolver implementation.
+func (r *Resolver) ChannelAccount() ChannelAccountResolver { return &channelAccountResolver{r} }
+
 // ChannelModelPrice returns ChannelModelPriceResolver implementation.
 func (r *Resolver) ChannelModelPrice() ChannelModelPriceResolver {
 	return &channelModelPriceResolver{r}
@@ -1056,6 +1074,7 @@ func (r *Resolver) UserRole() UserRoleResolver { return &userRoleResolver{r} }
 type aPIKeyResolver struct{ *Resolver }
 type aPIKeyProfileTemplateResolver struct{ *Resolver }
 type channelResolver struct{ *Resolver }
+type channelAccountResolver struct{ *Resolver }
 type channelModelPriceResolver struct{ *Resolver }
 type channelModelPriceVersionResolver struct{ *Resolver }
 type channelOverrideTemplateResolver struct{ *Resolver }

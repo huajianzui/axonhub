@@ -77,6 +77,8 @@ const (
 	EdgeChannelModelPrices = "channel_model_prices"
 	// EdgeProviderQuotaStatus holds the string denoting the provider_quota_status edge name in mutations.
 	EdgeProviderQuotaStatus = "provider_quota_status"
+	// EdgeAccounts holds the string denoting the accounts edge name in mutations.
+	EdgeAccounts = "accounts"
 	// Table holds the table name of the channel in the database.
 	Table = "channels"
 	// RequestsTable is the table that holds the requests relation/edge.
@@ -121,6 +123,13 @@ const (
 	ProviderQuotaStatusInverseTable = "provider_quota_status"
 	// ProviderQuotaStatusColumn is the table column denoting the provider_quota_status relation/edge.
 	ProviderQuotaStatusColumn = "channel_id"
+	// AccountsTable is the table that holds the accounts relation/edge.
+	AccountsTable = "channel_accounts"
+	// AccountsInverseTable is the table name for the ChannelAccount entity.
+	// It exists in this package in order to avoid circular dependency with the "channelaccount" package.
+	AccountsInverseTable = "channel_accounts"
+	// AccountsColumn is the table column denoting the accounts relation/edge.
+	AccountsColumn = "channel_id"
 )
 
 // Columns holds all SQL columns for channel fields.
@@ -477,6 +486,20 @@ func ByProviderQuotaStatusField(field string, opts ...sql.OrderTermOption) Order
 		sqlgraph.OrderByNeighborTerms(s, newProviderQuotaStatusStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByAccountsCount orders the results by accounts count.
+func ByAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAccountsStep(), opts...)
+	}
+}
+
+// ByAccounts orders the results by accounts terms.
+func ByAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newRequestsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -517,6 +540,13 @@ func newProviderQuotaStatusStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ProviderQuotaStatusInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2O, false, ProviderQuotaStatusTable, ProviderQuotaStatusColumn),
+	)
+}
+func newAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AccountsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, AccountsTable, AccountsColumn),
 	)
 }
 

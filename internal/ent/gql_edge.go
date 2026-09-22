@@ -148,6 +148,26 @@ func (_m *Channel) ProviderQuotaStatus(ctx context.Context) (*ProviderQuotaStatu
 	return result, MaskNotFound(err)
 }
 
+func (_m *Channel) Accounts(ctx context.Context) (result []*ChannelAccount, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = _m.NamedAccounts(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = _m.Edges.AccountsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = _m.QueryAccounts().All(ctx)
+	}
+	return result, err
+}
+
+func (_m *ChannelAccount) Channel(ctx context.Context) (*Channel, error) {
+	result, err := _m.Edges.ChannelOrErr()
+	if IsNotLoaded(err) {
+		result, err = _m.QueryChannel().Only(ctx)
+	}
+	return result, err
+}
+
 func (_m *ChannelModelPrice) Channel(ctx context.Context) (*Channel, error) {
 	result, err := _m.Edges.ChannelOrErr()
 	if IsNotLoaded(err) {

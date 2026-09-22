@@ -216,6 +216,13 @@ func (Channel) Edges() []ent.Edge {
 				entgql.Directives(forceResolver()),
 				entgql.Skip(entgql.SkipMutationCreateInput, entgql.SkipMutationUpdateInput),
 			),
+		// One channel may hold several subscription accounts. The relation is
+		// read-only over GraphQL: authorization happens through the provider
+		// OAuth endpoints, not through a mutation input.
+		edge.To("accounts", ChannelAccount.Type).
+			Annotations(
+				entgql.Skip(entgql.SkipMutationCreateInput, entgql.SkipMutationUpdateInput),
+			),
 	}
 }
 

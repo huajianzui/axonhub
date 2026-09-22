@@ -133,6 +133,55 @@ var (
 			},
 		},
 	}
+	// ChannelAccountsColumns holds the columns for the "channel_accounts" table.
+	ChannelAccountsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "deleted_at", Type: field.TypeInt, Default: 0},
+		{Name: "name", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "identity", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "identity_fingerprint", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "credentials", Type: field.TypeJSON},
+		{Name: "auth_state", Type: field.TypeEnum, Enums: []string{"ready", "refreshing", "reauthorization_required", "outcome_unknown"}, Default: "ready"},
+		{Name: "auth_error_code", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "weight", Type: field.TypeInt, Default: 50},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_refresh_at", Type: field.TypeTime, Nullable: true},
+		{Name: "channel_id", Type: field.TypeInt},
+	}
+	// ChannelAccountsTable holds the schema information for the "channel_accounts" table.
+	ChannelAccountsTable = &schema.Table{
+		Name:       "channel_accounts",
+		Columns:    ChannelAccountsColumns,
+		PrimaryKey: []*schema.Column{ChannelAccountsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_accounts_channels_accounts",
+				Columns:    []*schema.Column{ChannelAccountsColumns[14]},
+				RefColumns: []*schema.Column{ChannelsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channel_accounts_by_channel_identity",
+				Unique:  true,
+				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[6], ChannelAccountsColumns[3]},
+			},
+			{
+				Name:    "channel_accounts_by_channel",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[3]},
+			},
+			{
+				Name:    "channel_accounts_by_channel_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[10], ChannelAccountsColumns[3]},
+			},
+		},
+	}
 	// ChannelModelPricesColumns holds the columns for the "channel_model_prices" table.
 	ChannelModelPricesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1054,6 +1103,7 @@ var (
 		APIKeysTable,
 		APIKeyProfileTemplatesTable,
 		ChannelsTable,
+		ChannelAccountsTable,
 		ChannelModelPricesTable,
 		ChannelModelPriceVersionsTable,
 		ChannelOverrideTemplatesTable,
@@ -1083,6 +1133,7 @@ func init() {
 	APIKeysTable.ForeignKeys[0].RefTable = ProjectsTable
 	APIKeysTable.ForeignKeys[1].RefTable = UsersTable
 	APIKeyProfileTemplatesTable.ForeignKeys[0].RefTable = ProjectsTable
+	ChannelAccountsTable.ForeignKeys[0].RefTable = ChannelsTable
 	ChannelModelPricesTable.ForeignKeys[0].RefTable = ChannelsTable
 	ChannelModelPriceVersionsTable.ForeignKeys[0].RefTable = ChannelModelPricesTable
 	ChannelOverrideTemplatesTable.ForeignKeys[0].RefTable = UsersTable

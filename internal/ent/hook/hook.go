@@ -45,6 +45,18 @@ func (f ChannelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelMutation", m)
 }
 
+// The ChannelAccountFunc type is an adapter to allow the use of ordinary
+// function as ChannelAccount mutator.
+type ChannelAccountFunc func(context.Context, *ent.ChannelAccountMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelAccountFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelAccountMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelAccountMutation", m)
+}
+
 // The ChannelModelPriceFunc type is an adapter to allow the use of ordinary
 // function as ChannelModelPrice mutator.
 type ChannelModelPriceFunc func(context.Context, *ent.ChannelModelPriceMutation) (ent.Value, error)

@@ -183,6 +183,30 @@ func (f ChannelMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutatio
 	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.ChannelMutation", m)
 }
 
+// The ChannelAccountQueryRuleFunc type is an adapter to allow the use of ordinary
+// functions as a query rule.
+type ChannelAccountQueryRuleFunc func(context.Context, *ent.ChannelAccountQuery) error
+
+// EvalQuery return f(ctx, q).
+func (f ChannelAccountQueryRuleFunc) EvalQuery(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ChannelAccountQuery); ok {
+		return f(ctx, q)
+	}
+	return Denyf("ent/privacy: unexpected query type %T, expect *ent.ChannelAccountQuery", q)
+}
+
+// The ChannelAccountMutationRuleFunc type is an adapter to allow the use of ordinary
+// functions as a mutation rule.
+type ChannelAccountMutationRuleFunc func(context.Context, *ent.ChannelAccountMutation) error
+
+// EvalMutation calls f(ctx, m).
+func (f ChannelAccountMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutation) error {
+	if m, ok := m.(*ent.ChannelAccountMutation); ok {
+		return f(ctx, m)
+	}
+	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.ChannelAccountMutation", m)
+}
+
 // The ChannelModelPriceQueryRuleFunc type is an adapter to allow the use of ordinary
 // functions as a query rule.
 type ChannelModelPriceQueryRuleFunc func(context.Context, *ent.ChannelModelPriceQuery) error
@@ -752,6 +776,8 @@ func queryFilter(q ent.Query) (Filter, error) {
 		return q.Filter(), nil
 	case *ent.ChannelQuery:
 		return q.Filter(), nil
+	case *ent.ChannelAccountQuery:
+		return q.Filter(), nil
 	case *ent.ChannelModelPriceQuery:
 		return q.Filter(), nil
 	case *ent.ChannelModelPriceVersionQuery:
@@ -808,6 +834,8 @@ func mutationFilter(m ent.Mutation) (Filter, error) {
 	case *ent.APIKeyProfileTemplateMutation:
 		return m.Filter(), nil
 	case *ent.ChannelMutation:
+		return m.Filter(), nil
+	case *ent.ChannelAccountMutation:
 		return m.Filter(), nil
 	case *ent.ChannelModelPriceMutation:
 		return m.Filter(), nil

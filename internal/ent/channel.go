@@ -86,17 +86,20 @@ type ChannelEdges struct {
 	ChannelModelPrices []*ChannelModelPrice `json:"channel_model_prices,omitempty"`
 	// ProviderQuotaStatus holds the value of the provider_quota_status edge.
 	ProviderQuotaStatus *ProviderQuotaStatus `json:"provider_quota_status,omitempty"`
+	// Accounts holds the value of the accounts edge.
+	Accounts []*ChannelAccount `json:"accounts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [7]bool
 	// totalCount holds the count of the edges above.
-	totalCount [6]map[string]int
+	totalCount [7]map[string]int
 
 	namedRequests           map[string][]*Request
 	namedExecutions         map[string][]*RequestExecution
 	namedUsageLogs          map[string][]*UsageLog
 	namedChannelProbes      map[string][]*ChannelProbe
 	namedChannelModelPrices map[string][]*ChannelModelPrice
+	namedAccounts           map[string][]*ChannelAccount
 }
 
 // RequestsOrErr returns the Requests value or an error if the edge
@@ -153,6 +156,15 @@ func (e ChannelEdges) ProviderQuotaStatusOrErr() (*ProviderQuotaStatus, error) {
 		return nil, &NotFoundError{label: providerquotastatus.Label}
 	}
 	return nil, &NotLoadedError{edge: "provider_quota_status"}
+}
+
+// AccountsOrErr returns the Accounts value or an error if the edge
+// was not loaded in eager-loading.
+func (e ChannelEdges) AccountsOrErr() ([]*ChannelAccount, error) {
+	if e.loadedTypes[6] {
+		return e.Accounts, nil
+	}
+	return nil, &NotLoadedError{edge: "accounts"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -392,6 +404,11 @@ func (_m *Channel) QueryProviderQuotaStatus() *ProviderQuotaStatusQuery {
 	return NewChannelClient(_m.config).QueryProviderQuotaStatus(_m)
 }
 
+// QueryAccounts queries the "accounts" edge of the Channel entity.
+func (_m *Channel) QueryAccounts() *ChannelAccountQuery {
+	return NewChannelClient(_m.config).QueryAccounts(_m)
+}
+
 // Update returns a builder for updating this Channel.
 // Note that you need to call Channel.Unwrap() before calling this method if this Channel
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -610,6 +627,30 @@ func (_m *Channel) appendNamedChannelModelPrices(name string, edges ...*ChannelM
 		_m.Edges.namedChannelModelPrices[name] = []*ChannelModelPrice{}
 	} else {
 		_m.Edges.namedChannelModelPrices[name] = append(_m.Edges.namedChannelModelPrices[name], edges...)
+	}
+}
+
+// NamedAccounts returns the Accounts named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (_m *Channel) NamedAccounts(name string) ([]*ChannelAccount, error) {
+	if _m.Edges.namedAccounts == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := _m.Edges.namedAccounts[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (_m *Channel) appendNamedAccounts(name string, edges ...*ChannelAccount) {
+	if _m.Edges.namedAccounts == nil {
+		_m.Edges.namedAccounts = make(map[string][]*ChannelAccount)
+	}
+	if len(edges) == 0 {
+		_m.Edges.namedAccounts[name] = []*ChannelAccount{}
+	} else {
+		_m.Edges.namedAccounts[name] = append(_m.Edges.namedAccounts[name], edges...)
 	}
 }
 

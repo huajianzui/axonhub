@@ -9,6 +9,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/apikey"
 	"github.com/looplj/axonhub/internal/ent/apikeyprofiletemplate"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
@@ -206,6 +207,65 @@ func init() {
 	channelDescEndpoints := channelFields[19].Descriptor()
 	// channel.DefaultEndpoints holds the default value on creation for the endpoints field.
 	channel.DefaultEndpoints = channelDescEndpoints.Default.([]objects.ChannelEndpoint)
+	channelaccountMixin := schema.ChannelAccount{}.Mixin()
+	channelaccount.Policy = privacy.NewPolicies(schema.ChannelAccount{})
+	channelaccount.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := channelaccount.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	channelaccountMixinHooks1 := channelaccountMixin[1].Hooks()
+
+	channelaccount.Hooks[1] = channelaccountMixinHooks1[0]
+	channelaccountMixinInters1 := channelaccountMixin[1].Interceptors()
+	channelaccount.Interceptors[0] = channelaccountMixinInters1[0]
+	channelaccountMixinFields0 := channelaccountMixin[0].Fields()
+	_ = channelaccountMixinFields0
+	channelaccountMixinFields1 := channelaccountMixin[1].Fields()
+	_ = channelaccountMixinFields1
+	channelaccountFields := schema.ChannelAccount{}.Fields()
+	_ = channelaccountFields
+	// channelaccountDescCreatedAt is the schema descriptor for created_at field.
+	channelaccountDescCreatedAt := channelaccountMixinFields0[0].Descriptor()
+	// channelaccount.DefaultCreatedAt holds the default value on creation for the created_at field.
+	channelaccount.DefaultCreatedAt = channelaccountDescCreatedAt.Default.(func() time.Time)
+	// channelaccountDescUpdatedAt is the schema descriptor for updated_at field.
+	channelaccountDescUpdatedAt := channelaccountMixinFields0[1].Descriptor()
+	// channelaccount.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	channelaccount.DefaultUpdatedAt = channelaccountDescUpdatedAt.Default.(func() time.Time)
+	// channelaccount.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	channelaccount.UpdateDefaultUpdatedAt = channelaccountDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// channelaccountDescDeletedAt is the schema descriptor for deleted_at field.
+	channelaccountDescDeletedAt := channelaccountMixinFields1[0].Descriptor()
+	// channelaccount.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	channelaccount.DefaultDeletedAt = channelaccountDescDeletedAt.Default.(int)
+	// channelaccountDescName is the schema descriptor for name field.
+	channelaccountDescName := channelaccountFields[1].Descriptor()
+	// channelaccount.DefaultName holds the default value on creation for the name field.
+	channelaccount.DefaultName = channelaccountDescName.Default.(string)
+	// channelaccountDescIdentity is the schema descriptor for identity field.
+	channelaccountDescIdentity := channelaccountFields[2].Descriptor()
+	// channelaccount.DefaultIdentity holds the default value on creation for the identity field.
+	channelaccount.DefaultIdentity = channelaccountDescIdentity.Default.(string)
+	// channelaccountDescIdentityFingerprint is the schema descriptor for identity_fingerprint field.
+	channelaccountDescIdentityFingerprint := channelaccountFields[3].Descriptor()
+	// channelaccount.DefaultIdentityFingerprint holds the default value on creation for the identity_fingerprint field.
+	channelaccount.DefaultIdentityFingerprint = channelaccountDescIdentityFingerprint.Default.(string)
+	// channelaccountDescAuthErrorCode is the schema descriptor for auth_error_code field.
+	channelaccountDescAuthErrorCode := channelaccountFields[6].Descriptor()
+	// channelaccount.DefaultAuthErrorCode holds the default value on creation for the auth_error_code field.
+	channelaccount.DefaultAuthErrorCode = channelaccountDescAuthErrorCode.Default.(string)
+	// channelaccountDescEnabled is the schema descriptor for enabled field.
+	channelaccountDescEnabled := channelaccountFields[7].Descriptor()
+	// channelaccount.DefaultEnabled holds the default value on creation for the enabled field.
+	channelaccount.DefaultEnabled = channelaccountDescEnabled.Default.(bool)
+	// channelaccountDescWeight is the schema descriptor for weight field.
+	channelaccountDescWeight := channelaccountFields[8].Descriptor()
+	// channelaccount.DefaultWeight holds the default value on creation for the weight field.
+	channelaccount.DefaultWeight = channelaccountDescWeight.Default.(int)
 	channelmodelpriceMixin := schema.ChannelModelPrice{}.Mixin()
 	channelmodelprice.Policy = privacy.NewPolicies(schema.ChannelModelPrice{})
 	channelmodelprice.Hooks[0] = func(next ent.Mutator) ent.Mutator {

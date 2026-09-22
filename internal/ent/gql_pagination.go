@@ -17,6 +17,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/apikey"
 	"github.com/looplj/axonhub/internal/ent/apikeyprofiletemplate"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
@@ -1148,6 +1149,320 @@ func (_m *Channel) ToEdge(order *ChannelOrder) *ChannelEdge {
 		order = DefaultChannelOrder
 	}
 	return &ChannelEdge{
+		Node:   _m,
+		Cursor: order.Field.toCursor(_m),
+	}
+}
+
+// ChannelAccountEdge is the edge representation of ChannelAccount.
+type ChannelAccountEdge struct {
+	Node   *ChannelAccount `json:"node"`
+	Cursor Cursor          `json:"cursor"`
+}
+
+// ChannelAccountConnection is the connection containing edges to ChannelAccount.
+type ChannelAccountConnection struct {
+	Edges      []*ChannelAccountEdge `json:"edges"`
+	PageInfo   PageInfo              `json:"pageInfo"`
+	TotalCount int                   `json:"totalCount"`
+}
+
+func (c *ChannelAccountConnection) build(nodes []*ChannelAccount, pager *channelaccountPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *ChannelAccount
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *ChannelAccount {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *ChannelAccount {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*ChannelAccountEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &ChannelAccountEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// ChannelAccountPaginateOption enables pagination customization.
+type ChannelAccountPaginateOption func(*channelaccountPager) error
+
+// WithChannelAccountOrder configures pagination ordering.
+func WithChannelAccountOrder(order *ChannelAccountOrder) ChannelAccountPaginateOption {
+	if order == nil {
+		order = DefaultChannelAccountOrder
+	}
+	o := *order
+	return func(pager *channelaccountPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultChannelAccountOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithChannelAccountFilter configures pagination filter.
+func WithChannelAccountFilter(filter func(*ChannelAccountQuery) (*ChannelAccountQuery, error)) ChannelAccountPaginateOption {
+	return func(pager *channelaccountPager) error {
+		if filter == nil {
+			return errors.New("ChannelAccountQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type channelaccountPager struct {
+	reverse bool
+	order   *ChannelAccountOrder
+	filter  func(*ChannelAccountQuery) (*ChannelAccountQuery, error)
+}
+
+func newChannelAccountPager(opts []ChannelAccountPaginateOption, reverse bool) (*channelaccountPager, error) {
+	pager := &channelaccountPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultChannelAccountOrder
+	}
+	return pager, nil
+}
+
+func (p *channelaccountPager) applyFilter(query *ChannelAccountQuery) (*ChannelAccountQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *channelaccountPager) toCursor(_m *ChannelAccount) Cursor {
+	return p.order.Field.toCursor(_m)
+}
+
+func (p *channelaccountPager) applyCursors(query *ChannelAccountQuery, after, before *Cursor) (*ChannelAccountQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultChannelAccountOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *channelaccountPager) applyOrder(query *ChannelAccountQuery) *ChannelAccountQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultChannelAccountOrder.Field {
+		query = query.Order(DefaultChannelAccountOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *channelaccountPager) orderExpr(query *ChannelAccountQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultChannelAccountOrder.Field {
+			b.Comma().Ident(DefaultChannelAccountOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to ChannelAccount.
+func (_m *ChannelAccountQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...ChannelAccountPaginateOption,
+) (*ChannelAccountConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newChannelAccountPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if _m, err = pager.applyFilter(_m); err != nil {
+		return nil, err
+	}
+	conn := &ChannelAccountConnection{Edges: []*ChannelAccountEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := _m.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if _m, err = pager.applyCursors(_m, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		_m.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := _m.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	_m = pager.applyOrder(_m)
+	nodes, err := _m.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+var (
+	// ChannelAccountOrderFieldCreatedAt orders ChannelAccount by created_at.
+	ChannelAccountOrderFieldCreatedAt = &ChannelAccountOrderField{
+		Value: func(_m *ChannelAccount) (ent.Value, error) {
+			return _m.CreatedAt, nil
+		},
+		column: channelaccount.FieldCreatedAt,
+		toTerm: channelaccount.ByCreatedAt,
+		toCursor: func(_m *ChannelAccount) Cursor {
+			return Cursor{
+				ID:    _m.ID,
+				Value: _m.CreatedAt,
+			}
+		},
+	}
+	// ChannelAccountOrderFieldUpdatedAt orders ChannelAccount by updated_at.
+	ChannelAccountOrderFieldUpdatedAt = &ChannelAccountOrderField{
+		Value: func(_m *ChannelAccount) (ent.Value, error) {
+			return _m.UpdatedAt, nil
+		},
+		column: channelaccount.FieldUpdatedAt,
+		toTerm: channelaccount.ByUpdatedAt,
+		toCursor: func(_m *ChannelAccount) Cursor {
+			return Cursor{
+				ID:    _m.ID,
+				Value: _m.UpdatedAt,
+			}
+		},
+	}
+)
+
+// String implement fmt.Stringer interface.
+func (f ChannelAccountOrderField) String() string {
+	var str string
+	switch f.column {
+	case ChannelAccountOrderFieldCreatedAt.column:
+		str = "CREATED_AT"
+	case ChannelAccountOrderFieldUpdatedAt.column:
+		str = "UPDATED_AT"
+	}
+	return str
+}
+
+// MarshalGQL implements graphql.Marshaler interface.
+func (f ChannelAccountOrderField) MarshalGQL(w io.Writer) {
+	io.WriteString(w, strconv.Quote(f.String()))
+}
+
+// UnmarshalGQL implements graphql.Unmarshaler interface.
+func (f *ChannelAccountOrderField) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("ChannelAccountOrderField %T must be a string", v)
+	}
+	switch str {
+	case "CREATED_AT":
+		*f = *ChannelAccountOrderFieldCreatedAt
+	case "UPDATED_AT":
+		*f = *ChannelAccountOrderFieldUpdatedAt
+	default:
+		return fmt.Errorf("%s is not a valid ChannelAccountOrderField", str)
+	}
+	return nil
+}
+
+// ChannelAccountOrderField defines the ordering field of ChannelAccount.
+type ChannelAccountOrderField struct {
+	// Value extracts the ordering value from the given ChannelAccount.
+	Value    func(*ChannelAccount) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) channelaccount.OrderOption
+	toCursor func(*ChannelAccount) Cursor
+}
+
+// ChannelAccountOrder defines the ordering of ChannelAccount.
+type ChannelAccountOrder struct {
+	Direction OrderDirection            `json:"direction"`
+	Field     *ChannelAccountOrderField `json:"field"`
+}
+
+// DefaultChannelAccountOrder is the default ordering of ChannelAccount.
+var DefaultChannelAccountOrder = &ChannelAccountOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &ChannelAccountOrderField{
+		Value: func(_m *ChannelAccount) (ent.Value, error) {
+			return _m.ID, nil
+		},
+		column: channelaccount.FieldID,
+		toTerm: channelaccount.ByID,
+		toCursor: func(_m *ChannelAccount) Cursor {
+			return Cursor{ID: _m.ID}
+		},
+	},
+}
+
+// ToEdge converts ChannelAccount into ChannelAccountEdge.
+func (_m *ChannelAccount) ToEdge(order *ChannelAccountOrder) *ChannelAccountEdge {
+	if order == nil {
+		order = DefaultChannelAccountOrder
+	}
+	return &ChannelAccountEdge{
 		Node:   _m,
 		Cursor: order.Field.toCursor(_m),
 	}
