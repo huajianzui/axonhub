@@ -5,10 +5,11 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban } from 'lucide-react';
+import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { cn } from '@/lib/utils';
 import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -467,6 +468,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     startFn: codexOAuthStart,
     exchangeFn: codexOAuthExchange,
     proxyConfig,
+    callbackProvider: 'codex',
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
     },
@@ -476,6 +478,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     startFn: claudecodeOAuthStart,
     exchangeFn: claudecodeOAuthExchange,
     proxyConfig,
+    callbackProvider: 'claudecode',
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
     },
@@ -485,6 +488,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     startFn: xaiOAuthStart,
     exchangeFn: xaiOAuthExchange,
     proxyConfig,
+    callbackProvider: 'xai',
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
     },
@@ -494,6 +498,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     startFn: antigravityOAuthStart,
     exchangeFn: antigravityOAuthExchange,
     proxyConfig,
+    callbackProvider: 'antigravity',
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
     },
@@ -1197,52 +1202,77 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   }, [supportedModels, watchedDefaultTestModel, isEdit, isDuplicate, form]);
 
   const renderOAuthSection = useCallback(
-    (oauth: ReturnType<typeof useOAuthFlow>, description: string) => (
-      <div className='mt-3 space-y-2'>
-        <div className='rounded-md border p-3'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button type='button' variant='secondary' onClick={oauth.start} disabled={oauth.isStarting}>
-              {oauth.isStarting ? t('channels.dialogs.oauth.buttons.starting') : t('channels.dialogs.oauth.buttons.startOAuth')}
-            </Button>
-            {oauth.authUrl && (
-              <Button type='button' variant='ghost' onClick={() => window.open(oauth.authUrl || '', '_blank', 'noopener,noreferrer')}>
-                {t('channels.dialogs.oauth.buttons.openOAuthLink')}
+    (oauth: ReturnType<typeof useOAuthFlow>, description: string) => {
+      // The callback URL and exchange button stay visible as a fallback: they
+      // are the only path when the provider's fixed port is held by something
+      // else, and a failed auto exchange leaves the captured URL there to retry.
+      const showCallbackField = !oauth.isAutoCaptureAvailable || !oauth.isAwaitingCallback;
+
+      return (
+        <div className='mt-3 space-y-2'>
+          <div className='rounded-md border p-3'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button type='button' variant='secondary' onClick={oauth.start} disabled={oauth.isStarting}>
+                {oauth.isStarting ? t('channels.dialogs.oauth.buttons.starting') : t('channels.dialogs.oauth.buttons.startOAuth')}
               </Button>
-            )}
-          </div>
-
-          {oauth.authUrl && (
-            <div className='mt-3 space-y-2'>
-              <FormLabel className='text-sm font-medium'>{t('channels.dialogs.oauth.labels.authorizationUrl')}</FormLabel>
-              <Textarea
-                value={oauth.authUrl}
-                readOnly
-                className='min-h-[60px] resize-none font-mono text-xs'
-                placeholder={t('channels.dialogs.oauth.placeholders.authorizationUrl')}
-              />
+              {oauth.authUrl && (
+                <Button type='button' variant='ghost' onClick={() => window.open(oauth.authUrl || '', '_blank', 'noopener,noreferrer')}>
+                  {t('channels.dialogs.oauth.buttons.openOAuthLink')}
+                </Button>
+              )}
             </div>
-          )}
 
-          <div className='mt-3 space-y-2'>
-            <FormLabel className='text-sm font-medium'>{t('channels.dialogs.oauth.labels.callbackUrl')}</FormLabel>
-            <Textarea
-              value={oauth.callbackUrl}
-              onChange={(e) => oauth.setCallbackUrl(e.target.value)}
-              placeholder={t('channels.dialogs.oauth.placeholders.callbackUrl')}
-              className='min-h-[80px] resize-y font-mono text-xs'
-            />
-            <Button type='button' onClick={oauth.exchange} disabled={oauth.isExchanging || !oauth.sessionId}>
-              {oauth.isExchanging
-                ? t('channels.dialogs.oauth.buttons.exchanging')
-                : t('channels.dialogs.oauth.buttons.exchangeAndFillApiKey')}
-            </Button>
+            {oauth.isAwaitingCallback && (
+              <div className='bg-muted/50 mt-3 flex items-start gap-2 rounded-md p-3'>
+                <Loader2 className={cn('mt-0.5 h-4 w-4 shrink-0', oauth.isAutoCompleting ? 'animate-spin' : 'animate-pulse')} />
+                <div className='space-y-1'>
+                  <p className='text-sm font-medium'>
+                    {oauth.isAutoCompleting
+                      ? t('channels.dialogs.oauth.autoCapture.completing')
+                      : t('channels.dialogs.oauth.autoCapture.waiting')}
+                  </p>
+                  {!oauth.isAutoCompleting && (
+                    <p className='text-muted-foreground text-xs'>{t('channels.dialogs.oauth.autoCapture.hint')}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {oauth.authUrl && (
+              <div className='mt-3 space-y-2'>
+                <FormLabel className='text-sm font-medium'>{t('channels.dialogs.oauth.labels.authorizationUrl')}</FormLabel>
+                <Textarea
+                  value={oauth.authUrl}
+                  readOnly
+                  className='min-h-[60px] resize-none font-mono text-xs'
+                  placeholder={t('channels.dialogs.oauth.placeholders.authorizationUrl')}
+                />
+              </div>
+            )}
+
+            {showCallbackField && (
+              <div className='mt-3 space-y-2'>
+                <FormLabel className='text-sm font-medium'>{t('channels.dialogs.oauth.labels.callbackUrl')}</FormLabel>
+                <Textarea
+                  value={oauth.callbackUrl}
+                  onChange={(e) => oauth.setCallbackUrl(e.target.value)}
+                  placeholder={t('channels.dialogs.oauth.placeholders.callbackUrl')}
+                  className='min-h-[80px] resize-y font-mono text-xs'
+                />
+                <Button type='button' onClick={oauth.exchange} disabled={oauth.isExchanging || !oauth.sessionId}>
+                  {oauth.isExchanging
+                    ? t('channels.dialogs.oauth.buttons.exchanging')
+                    : t('channels.dialogs.oauth.buttons.exchangeAndFillApiKey')}
+                </Button>
+              </div>
+            )}
+
+            <p className='mt-2 text-xs text-amber-600 dark:text-amber-400'>{t('channels.dialogs.proxy.oauthHint')}</p>
+            <p className='text-muted-foreground mt-2 text-xs'>{description}</p>
           </div>
-
-          <p className='mt-2 text-xs text-amber-600 dark:text-amber-400'>{t('channels.dialogs.proxy.oauthHint')}</p>
-          <p className='text-muted-foreground mt-2 text-xs'>{description}</p>
         </div>
-      </div>
-    ),
+      );
+    },
     [t]
   );
 
@@ -2125,6 +2155,29 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                   )}
                                 </div>
 
+                                {antigravityOAuth.isAwaitingCallback && (
+                                  <div className='bg-muted/50 mt-3 flex items-start gap-2 rounded-md p-3'>
+                                    <Loader2
+                                      className={cn(
+                                        'mt-0.5 h-4 w-4 shrink-0',
+                                        antigravityOAuth.isAutoCompleting ? 'animate-spin' : 'animate-pulse'
+                                      )}
+                                    />
+                                    <div className='space-y-1'>
+                                      <p className='text-sm font-medium'>
+                                        {antigravityOAuth.isAutoCompleting
+                                          ? t('channels.dialogs.oauth.autoCapture.completing')
+                                          : t('channels.dialogs.oauth.autoCapture.waiting')}
+                                      </p>
+                                      {!antigravityOAuth.isAutoCompleting && (
+                                        <p className='text-muted-foreground text-xs'>
+                                          {t('channels.dialogs.oauth.autoCapture.hint')}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {antigravityOAuth.authUrl && (
                                   <div className='mt-3 space-y-2'>
                                     <FormLabel className='text-sm font-medium'>
@@ -2139,26 +2192,28 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                   </div>
                                 )}
 
-                                <div className='mt-3 space-y-2'>
-                                  <FormLabel className='text-sm font-medium'>
-                                    {t('channels.dialogs.antigravity.labels.callbackUrl')}
-                                  </FormLabel>
-                                  <Textarea
-                                    value={antigravityOAuth.callbackUrl}
-                                    onChange={(e) => antigravityOAuth.setCallbackUrl(e.target.value)}
-                                    placeholder={t('channels.dialogs.antigravity.placeholders.callbackUrl')}
-                                    className='min-h-[80px] resize-y font-mono text-xs'
-                                  />
-                                  <Button
-                                    type='button'
-                                    onClick={() => antigravityOAuth.exchange()}
-                                    disabled={antigravityOAuth.isExchanging || !antigravityOAuth.sessionId}
-                                  >
-                                    {antigravityOAuth.isExchanging
-                                      ? t('channels.dialogs.antigravity.buttons.exchanging')
-                                      : t('channels.dialogs.antigravity.buttons.exchangeAndFillApiKey')}
-                                  </Button>
-                                </div>
+                                {(!antigravityOAuth.isAutoCaptureAvailable || !antigravityOAuth.isAwaitingCallback) && (
+                                  <div className='mt-3 space-y-2'>
+                                    <FormLabel className='text-sm font-medium'>
+                                      {t('channels.dialogs.antigravity.labels.callbackUrl')}
+                                    </FormLabel>
+                                    <Textarea
+                                      value={antigravityOAuth.callbackUrl}
+                                      onChange={(e) => antigravityOAuth.setCallbackUrl(e.target.value)}
+                                      placeholder={t('channels.dialogs.antigravity.placeholders.callbackUrl')}
+                                      className='min-h-[80px] resize-y font-mono text-xs'
+                                    />
+                                    <Button
+                                      type='button'
+                                      onClick={() => antigravityOAuth.exchange()}
+                                      disabled={antigravityOAuth.isExchanging || !antigravityOAuth.sessionId}
+                                    >
+                                      {antigravityOAuth.isExchanging
+                                        ? t('channels.dialogs.antigravity.buttons.exchanging')
+                                        : t('channels.dialogs.antigravity.buttons.exchangeAndFillApiKey')}
+                                    </Button>
+                                  </div>
+                                )}
 
                                 <p className='mt-2 text-xs text-amber-600 dark:text-amber-400'>{t('channels.dialogs.proxy.oauthHint')}</p>
                                 <p className='text-muted-foreground mt-2 text-xs'>

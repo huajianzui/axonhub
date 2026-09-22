@@ -1,7 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { ProxyType } from '../components/channels-proxy-dialog';
+import {
+  oauthCallbackPoll,
+  oauthCallbackStatus,
+  type OAuthCallbackProvider,
+} from '../data/oauth-callback';
 
 export interface ProxyConfig {
   type: ProxyType;
@@ -45,6 +50,13 @@ export interface OAuthFlowOptions {
    * Callback when credentials are successfully obtained
    */
   onSuccess?: (credentials: string) => void;
+
+  /**
+   * Provider key for the loopback callback listener. When set, the hook polls
+   * the listener after starting authorization and completes the exchange
+   * automatically, so the operator does not have to paste the callback URL.
+   */
+  callbackProvider?: OAuthCallbackProvider;
 }
 
 export interface OAuthFlowState {
@@ -53,6 +65,21 @@ export interface OAuthFlowState {
   callbackUrl: string;
   isStarting: boolean;
   isExchanging: boolean;
+  /**
+   * True while waiting for the browser to reach the loopback callback
+   * listener. The authorization URL has been opened and the console is polling.
+   */
+  isAwaitingCallback: boolean;
+  /**
+   * True when the listener captured the callback and the exchange is running
+   * without operator input.
+   */
+  isAutoCompleting: boolean;
+  /**
+   * True when AxonHub holds this provider's callback listener. When false the
+   * operator must paste the callback URL.
+   */
+  isAutoCaptureAvailable: boolean;
 }
 
 export interface OAuthFlowActions {
@@ -62,26 +89,33 @@ export interface OAuthFlowActions {
   reset: () => void;
 }
 
+/** How often the console asks the listener whether a callback arrived. */
+const POLL_INTERVAL_MS = 1500;
+
+/** How long the console keeps polling before giving up on auto capture. */
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
 /**
  * A reusable hook for managing OAuth flows (e.g., Codex, Claude Code).
  * This eliminates code duplication for different OAuth providers.
+ *
+ * When `callbackProvider` is set and AxonHub holds that provider's loopback
+ * callback listener, authorization completes on its own: the hook polls for the
+ * captured callback and exchanges it. Pasting the callback URL stays available
+ * as a fallback.
  *
  * @example
  * ```tsx
  * const codexOAuth = useOAuthFlow({
  *   startFn: codexOAuthStart,
  *   exchangeFn: codexOAuthExchange,
+ *   callbackProvider: 'codex',
  *   onSuccess: (credentials) => form.setValue('credentials.apiKey', credentials),
  * });
- *
- * // Later in your component:
- * <Button onClick={codexOAuth.start} disabled={codexOAuth.isStarting}>
- *   {codexOAuth.isStarting ? 'Starting...' : 'Start OAuth'}
- * </Button>
  * ```
  */
 export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthFlowActions {
-  const { startFn, exchangeFn, proxyConfig, onSuccess } = options;
+  const { startFn, exchangeFn, proxyConfig, onSuccess, callbackProvider } = options;
   const { t } = useTranslation();
 
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -89,41 +123,24 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
   const [callbackUrl, setCallbackUrl] = useState('');
   const [isStarting, setIsStarting] = useState(false);
   const [isExchanging, setIsExchanging] = useState(false);
+  const [isAwaitingCallback, setIsAwaitingCallback] = useState(false);
+  const [isAutoCompleting, setIsAutoCompleting] = useState(false);
+  const [isAutoCaptureAvailable, setIsAutoCaptureAvailable] = useState(false);
 
-  const start = useCallback(async () => {
-    setIsStarting(true);
-    try {
-      const result = await startFn();
-      setSessionId(result.session_id);
-      setAuthUrl(result.auth_url);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsStarting(false);
-    }
-  }, [startFn]);
+  // A paste mid-flight must win over the poller: these refs let the polling
+  // closure observe operator input and in-flight exchanges without re-running
+  // the polling effect.
+  const callbackUrlRef = useRef('');
+  callbackUrlRef.current = callbackUrl;
+  const exchangeInFlightRef = useRef(false);
 
-  const exchange = useCallback(async () => {
-    if (!sessionId) {
-      toast.error(t('channels.dialogs.oauth.errors.sessionMissing'));
-      return;
-    }
+  // Builds the exchange payload, shared by the manual and captured paths.
+  const buildExchangeInput = useCallback(
+    (url: string, session: string): OAuthExchangeInput => {
+      const input: OAuthExchangeInput = { session_id: session, callback_url: url };
 
-    if (!callbackUrl.trim()) {
-      toast.error(t('channels.dialogs.oauth.errors.callbackUrlRequired'));
-      return;
-    }
-
-    setIsExchanging(true);
-    try {
-      const exchangeInput: OAuthExchangeInput = {
-        session_id: sessionId,
-        callback_url: callbackUrl.trim(),
-      };
-
-      // Add proxy config if provided and type is not disabled/environment
       if (proxyConfig && proxyConfig.type === ProxyType.URL) {
-        exchangeInput.proxy = {
+        input.proxy = {
           type: proxyConfig.type,
           url: proxyConfig.url,
           ...(proxyConfig.username && { username: proxyConfig.username }),
@@ -131,7 +148,57 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
         };
       }
 
-      const result = await exchangeFn(exchangeInput);
+      return input;
+    },
+    [proxyConfig]
+  );
+
+  // Ask the backend whether this provider's loopback listener is active, so the
+  // console can decide whether to poll or to show the paste field.
+  useEffect(() => {
+    if (!callbackProvider) {
+      setIsAutoCaptureAvailable(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    oauthCallbackStatus()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+
+        const provider = result.providers?.find((item) => item.provider === callbackProvider);
+        setIsAutoCaptureAvailable(Boolean(provider?.active));
+      })
+      .catch(() => {
+        // A status failure only means we cannot know; fall back to pasting.
+        if (!cancelled) {
+          setIsAutoCaptureAvailable(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [callbackProvider]);
+
+  const exchange = useCallback(async () => {
+    if (!sessionId) {
+      toast.error(t('channels.dialogs.oauth.errors.sessionMissing'));
+      return;
+    }
+
+    const url = callbackUrlRef.current.trim();
+    if (!url) {
+      toast.error(t('channels.dialogs.oauth.errors.callbackUrlRequired'));
+      return;
+    }
+
+    setIsExchanging(true);
+    try {
+      const result = await exchangeFn(buildExchangeInput(url, sessionId));
 
       if (onSuccess) {
         onSuccess(result.credentials);
@@ -143,7 +210,109 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
     } finally {
       setIsExchanging(false);
     }
-  }, [sessionId, callbackUrl, exchangeFn, onSuccess, t, proxyConfig]);
+  }, [sessionId, exchangeFn, onSuccess, t, buildExchangeInput]);
+
+  // Poll the loopback listener for a captured callback. When it arrives, fill
+  // the field and run the same exchange the operator would have triggered.
+  useEffect(() => {
+    if (!callbackProvider || !isAutoCaptureAvailable || !sessionId || !isAwaitingCallback) {
+      return;
+    }
+
+    // A paste mid-flight wins: stop competing with the operator.
+    if (callbackUrlRef.current.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+    const timer = window.setInterval(async () => {
+      if (cancelled || exchangeInFlightRef.current) {
+        return;
+      }
+
+      if (Date.now() > deadline) {
+        window.clearInterval(timer);
+        if (!cancelled) {
+          setIsAwaitingCallback(false);
+          toast.error(t('channels.dialogs.oauth.errors.autoCaptureTimeout'));
+        }
+        return;
+      }
+
+      try {
+        const result = await oauthCallbackPoll(callbackProvider, sessionId);
+        if (cancelled || !result.ready || !result.callback_url) {
+          return;
+        }
+
+        exchangeInFlightRef.current = true;
+        window.clearInterval(timer);
+        setCallbackUrl(result.callback_url);
+        setIsAutoCompleting(true);
+
+        try {
+          const exchanged = await exchangeFn(buildExchangeInput(result.callback_url, sessionId));
+          if (!cancelled) {
+            onSuccess?.(exchanged.credentials);
+            toast.success(t('channels.dialogs.oauth.messages.autoCaptureCompleted'));
+            setIsAwaitingCallback(false);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            // Leave the captured URL in the field so the operator can retry by
+            // hand instead of losing the authorization.
+            toast.error(
+              t('channels.dialogs.oauth.errors.autoCaptureExchangeFailed', {
+                message: error instanceof Error ? error.message : String(error),
+              })
+            );
+          }
+        } finally {
+          exchangeInFlightRef.current = false;
+          if (!cancelled) {
+            setIsAutoCompleting(false);
+          }
+        }
+      } catch {
+        // A transient poll failure just means we try again on the next tick.
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    callbackProvider,
+    isAutoCaptureAvailable,
+    sessionId,
+    isAwaitingCallback,
+    exchangeFn,
+    onSuccess,
+    t,
+    buildExchangeInput,
+  ]);
+
+  const start = useCallback(async () => {
+    setIsStarting(true);
+    try {
+      const result = await startFn();
+      setSessionId(result.session_id);
+      setAuthUrl(result.auth_url);
+      setCallbackUrl('');
+
+      if (callbackProvider && isAutoCaptureAvailable) {
+        setIsAwaitingCallback(true);
+        window.open(result.auth_url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsStarting(false);
+    }
+  }, [startFn, callbackProvider, isAutoCaptureAvailable]);
 
   const reset = useCallback(() => {
     setSessionId(null);
@@ -151,6 +320,8 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
     setCallbackUrl('');
     setIsStarting(false);
     setIsExchanging(false);
+    setIsAwaitingCallback(false);
+    setIsAutoCompleting(false);
   }, []);
 
   return {
@@ -159,6 +330,9 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
     callbackUrl,
     isStarting,
     isExchanging,
+    isAwaitingCallback,
+    isAutoCompleting,
+    isAutoCaptureAvailable,
     start,
     exchange,
     setCallbackUrl,
