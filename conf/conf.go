@@ -256,6 +256,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.api.auth.allow_no_auth", false)
 	v.SetDefault("server.api.auth.key_prefix", "ah")
 
+	// Loopback OAuth callback listeners. They capture subscription provider
+	// callbacks so the console does not ask the operator to paste the callback
+	// URL back by hand. Binding is best effort; an unavailable port falls back
+	// to the paste flow.
+	v.SetDefault("server.oauth_callback.enabled", true)
+
 	// Database defaults
 	v.SetDefault("db.dialect", "sqlite3")
 	v.SetDefault("db.dsn", "file:axonhub.db?cache=shared&_fk=1&_pragma=journal_mode(WAL)")

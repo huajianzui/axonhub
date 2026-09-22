@@ -76,6 +76,23 @@ server:
       - "10.0.0.1"
     redirect_url: "https://example.com/unauthorized"  # Redirect target for non-allowed IPs (env: AXONHUB_SERVER_IP_ACCESS_CONTROL_REDIRECT_URL)
 
+  # Loopback OAuth callback listeners for subscription channels
+  # (Codex, Claude Code, Antigravity, xAI).
+  #
+  # These providers redirect the browser to a fixed loopback address after the
+  # operator approves access. With this enabled AxonHub listens on those
+  # addresses itself, so the channel console completes authorization
+  # automatically instead of asking the operator to paste the callback URL out
+  # of the browser. Pasting the URL remains available as a fallback.
+  #
+  # Binding is best effort: the provider-fixed ports are 1455 (Codex),
+  # 54545 (Claude Code), 51121 (Antigravity) and 56121 (xAI). A port that is
+  # already taken - for example by the provider's official CLI, or by another
+  # gateway that captured it first - is logged and skipped, and that provider
+  # falls back to the paste flow. Only one process on a host can hold each port.
+  oauth_callback:
+    enabled: true                     # Enable loopback callback listeners (env: AXONHUB_SERVER_OAUTH_CALLBACK_ENABLED)
+
 # Database configuration
 db:
   dialect: "sqlite3"            # Database dialect: sqlite3, postgres, mysql (env: AXONHUB_DB_DIALECT)

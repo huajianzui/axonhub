@@ -35,6 +35,7 @@ type Handlers struct {
 	ClaudeCode     *api.ClaudeCodeHandlers
 	Antigravity    *api.AntigravityHandlers
 	Copilot        *api.CopilotHandlers
+	OAuthCallback  *api.OAuthCallbackHandlers
 	RequestContent *api.RequestContentHandlers
 	OIDC           *api.OIDCHandlers
 	RequestPreview *api.RequestPreviewHandlers
@@ -127,6 +128,11 @@ func SetupRoutes(server *Server, handlers Handlers, client *ent.Client, services
 
 		adminGroup.POST("/copilot/oauth/start", handlers.Copilot.StartOAuth)
 		adminGroup.POST("/copilot/oauth/poll", handlers.Copilot.PollOAuth)
+
+		// Loopback OAuth callback capture. The console polls these after it
+		// opens an authorization URL, so subscription authorization completes
+		// without pasting the callback URL back by hand.
+		handlers.OAuthCallback.RegisterRoutes(adminGroup)
 
 		// OIDC Manual Linking
 		adminGroup.GET("/oidc/link/:provider", handlers.OIDC.GetLinkAuthorizeURL)

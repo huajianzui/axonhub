@@ -106,6 +106,10 @@ type Config struct {
 	API              API             `conf:"api" yaml:"api" json:"api"`
 	IPAccessControl  IPAccessControl `conf:"ip_access_control" yaml:"ip_access_control" json:"ip_access_control"`
 
+	// OAuthCallback configures the loopback listeners that capture subscription
+	// provider OAuth callbacks, removing the need to paste a callback URL.
+	OAuthCallback OAuthCallback `conf:"oauth_callback" yaml:"oauth_callback" json:"oauth_callback"`
+
 	// MaxMultipartMemory sets the maximum memory for parsing multipart forms (in bytes).
 	// This is important for backup restore which uploads large backup files.
 	// Default: 32 MB. Increase this if you have large backup files.
@@ -153,4 +157,20 @@ type IPAccessControl struct {
 	Enabled     bool     `conf:"enabled" yaml:"enabled" json:"enabled"`
 	AllowedIPs  []string `conf:"allowed_ips" yaml:"allowed_ips" json:"allowed_ips"`
 	RedirectURL string   `conf:"redirect_url" yaml:"redirect_url" json:"redirect_url"`
+}
+
+// OAuthCallback configures the loopback listeners that capture subscription
+// provider OAuth callbacks.
+//
+// Subscription providers redirect the operator's browser to a fixed loopback
+// address owned by the provider's own client. AxonHub can listen on that
+// address itself, so the console completes authorization automatically instead
+// of asking the operator to paste the callback URL back.
+//
+// The listeners bind loopback only. Binding is best effort: a port already
+// taken (for example by the provider's official CLI) is skipped and the
+// console falls back to the paste flow.
+type OAuthCallback struct {
+	// Enabled turns the loopback callback listeners on. Default: true.
+	Enabled bool `conf:"enabled" yaml:"enabled" json:"enabled"`
 }

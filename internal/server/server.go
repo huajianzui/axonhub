@@ -19,6 +19,7 @@ import (
 	"github.com/looplj/axonhub/internal/server/gql"
 	"github.com/looplj/axonhub/internal/server/gql/openapi"
 	"github.com/looplj/axonhub/internal/server/middleware"
+	"github.com/looplj/axonhub/internal/server/oauthcallback"
 	"github.com/looplj/axonhub/internal/server/orchestrator"
 	"github.com/looplj/axonhub/internal/server/scheduler"
 	"github.com/looplj/axonhub/internal/server/video_storage"
@@ -107,6 +108,7 @@ func Run(opts ...fx.Option) {
 			fx.NopLogger,
 			fx.Provide(constructors...),
 			dependencies.Module,
+			oauthcallback.Module,
 			scheduler.Module,
 			biz.Module,
 			orchestrator.Module,
@@ -114,6 +116,10 @@ func Run(opts ...fx.Option) {
 			video_storage.Module,
 			api.Module,
 			fx.Provide(fx.Annotate(func(cfg Config) string { return cfg.PublicURL }, fx.ResultTags(`name:"public_url"`))),
+			fx.Provide(fx.Annotate(
+				func(cfg Config) bool { return cfg.OAuthCallback.Enabled },
+				fx.ResultTags(`name:"oauth_callback_enabled"`),
+			)),
 			fx.Provide(func(cfg Config) api.SSEKeepAliveConfig {
 				return api.SSEKeepAliveConfig{
 					Enabled:  cfg.SSEKeepAlive.Enabled,
