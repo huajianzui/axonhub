@@ -25,6 +25,33 @@ const tokenExchangeTimeout = 30 * time.Second
 // Option is a functional option for Transformer.
 type Option func(*Transformer)
 
+// PerRequestGrant is the per-account piece of an Antigravity request: which
+// project to bill and which token provider authenticates it.
+type PerRequestGrant struct {
+	// Project is the Google Cloud project id carried in the request envelope.
+	Project string
+
+	// Tokens resolves the access token for this request.
+	Tokens oauth.TokenGetter
+}
+
+// WithPerRequestGrant makes the transformer resolve the grant per request
+// instead of using the credential it was built with.
+//
+// Antigravity's grant is a "<refreshToken>|<projectID>" string, and both halves
+// are per account, so a channel holding several accounts cannot express them
+// through the single Config.APIKey field. This hook lets the caller pick the
+// account and hand back its project and token provider, which is what makes
+// selection and refresh work per account.
+//
+// Returning ok=false falls back to the configured credential, so a caller with
+// nothing to resolve is free to stay on the previous path.
+func WithPerRequestGrant(resolve func(ctx context.Context) (PerRequestGrant, bool)) Option {
+	return func(t *Transformer) {
+		t.perRequestGrant = resolve
+	}
+}
+
 // WithHTTPClient sets the HTTP client.
 func WithHTTPClient(client *httpclient.HttpClient) Option {
 	return func(t *Transformer) {
@@ -58,6 +85,10 @@ type Transformer struct {
 	tokenProvider     *oauth.TokenProvider
 	httpClient        *httpclient.HttpClient
 	onTokenRefreshed  func(ctx context.Context, refreshed *oauth.OAuthCredentials) error
+
+	// perRequestGrant, when set, overrides the configured credential for each
+	// request. Used by channels that hold several accounts.
+	perRequestGrant func(ctx context.Context) (PerRequestGrant, bool)
 }
 
 // NewTransformer creates a new Antigravity Transformer.
@@ -181,13 +212,47 @@ func (t *Transformer) TransformRequest(ctx context.Context, llmReq *llm.Request)
 		return nil, err
 	}
 
-	// 4. Transform model name for Antigravity API compatibility
+	// 4. Resolve the grant for this request.
+	//
+	// Both halves of an Antigravity credential are per account: the token
+	// authenticates and the project id is carried in the envelope. A caller
+	// holding several accounts resolves both here, so the credential picked for
+	// this request is the one that gets billed.
+	project := t.config.Project
+	var accessToken string
+
+	if resolve := t.perRequestGrant; resolve != nil {
+		if grant, ok := resolve(ctx); ok {
+			creds, err := grant.Tokens.Get(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get OAuth token: %w", err)
+			}
+
+			accessToken = creds.AccessToken
+			project = grant.Project
+		}
+	}
+
+	if accessToken == "" {
+		if t.tokenProvider == nil {
+			return nil, fmt.Errorf("no OAuth token provider configured")
+		}
+
+		creds, err := t.tokenProvider.Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get OAuth token: %w", err)
+		}
+
+		accessToken = creds.AccessToken
+	}
+
+	// 5. Transform model name for Antigravity API compatibility
 	// Antigravity API requires tier suffixes for gemini-3-pro (e.g., gemini-3-pro-low)
 	// Store the original model name in metadata for the executor to use for routing
 	transformedModel := transformModelForAntigravity(llmReq.Model)
 
-	// 5. Wrap in Antigravity Envelope
-	envelope := NewAntigravityEnvelope(t.config.Project, transformedModel, geminiReq)
+	// 6. Wrap in Antigravity Envelope
+	envelope := NewAntigravityEnvelope(project, transformedModel, geminiReq)
 
 	body, err := json.Marshal(envelope)
 	if err != nil {
@@ -211,20 +276,9 @@ func (t *Transformer) TransformRequest(ctx context.Context, llmReq *llm.Request)
 	}
 
 	// Auth - OAuth only, no API key fallback
-	var authConfig *httpclient.AuthConfig
-
-	if t.tokenProvider != nil {
-		creds, err := t.tokenProvider.Get(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get OAuth token: %w", err)
-		}
-
-		authConfig = &httpclient.AuthConfig{
-			Type:   httpclient.AuthTypeBearer,
-			APIKey: creds.AccessToken,
-		}
-	} else {
-		return nil, fmt.Errorf("no OAuth token provider configured")
+	authConfig := &httpclient.AuthConfig{
+		Type:   httpclient.AuthTypeBearer,
+		APIKey: accessToken,
 	}
 
 	// URL

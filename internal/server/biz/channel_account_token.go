@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -15,6 +16,7 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/oauth"
+	"github.com/looplj/axonhub/llm/transformer/antigravity"
 )
 
 // accountStickyLRUSize bounds the trace-to-account mapping.
@@ -127,6 +129,70 @@ func (g *ChannelAccountTokenGetter) Get(ctx context.Context) (*oauth.OAuthCreden
 	return creds, nil
 }
 
+// GrantForRequest resolves the Antigravity grant for the account chosen for this
+// request: the project id belongs to the same account as the refresh token, so
+// both must come from one choice.
+//
+// It reports false when the channel has no account to resolve, which lets the
+// transformer fall back to the credential it was built with.
+func (g *ChannelAccountTokenGetter) GrantForRequest(ctx context.Context) (antigravity.PerRequestGrant, bool) {
+	account := g.selectAccount(ctx)
+	if account == nil {
+		return antigravity.PerRequestGrant{}, false
+	}
+
+	projected, err := objects.ChannelCredentialsFromAccountCredential(account.Credentials)
+	if err != nil {
+		log.Warn(ctx, "cannot read antigravity grant for account",
+			log.Int("account_id", account.ID),
+			log.Int("channel_id", g.channel.ID),
+			log.Cause(err),
+		)
+
+		return antigravity.PerRequestGrant{}, false
+	}
+
+	// Antigravity stores "<refreshToken>|<projectID>" in the legacy field.
+	project, err := projectIDFromAntigravityCredential(projected.APIKey)
+	if err != nil {
+		log.Warn(ctx, "antigravity account has no project id",
+			log.Int("account_id", account.ID),
+			log.Int("channel_id", g.channel.ID),
+			log.Cause(err),
+		)
+
+		return antigravity.PerRequestGrant{}, false
+	}
+
+	provider, err := g.providerFor(account)
+	if err != nil {
+		log.Warn(ctx, "cannot build token provider for antigravity account",
+			log.Int("account_id", account.ID),
+			log.Int("channel_id", g.channel.ID),
+			log.Cause(err),
+		)
+
+		return antigravity.PerRequestGrant{}, false
+	}
+
+	// Record the choice so failure bookkeeping addresses this account.
+	ctx = contexts.EnsureContainer(ctx)
+	contexts.WithChannelAPIKey(ctx, accountCredentialRef(account.ID))
+
+	return antigravity.PerRequestGrant{Project: project, Tokens: provider}, true
+}
+
+// projectIDFromAntigravityCredential extracts the project id from the
+// "<refreshToken>|<projectID>" form.
+func projectIDFromAntigravityCredential(credential string) (string, error) {
+	_, projectID, found := strings.Cut(credential, "|")
+	if !found || strings.TrimSpace(projectID) == "" {
+		return "", fmt.Errorf("credential %q has no project id", "antigravity")
+	}
+
+	return strings.TrimSpace(projectID), nil
+}
+
 // providerFor returns the account's token provider, building it on first use.
 //
 // Providers are created lazily so a channel with many accounts only pays for
@@ -145,11 +211,19 @@ func (g *ChannelAccountTokenGetter) providerFor(account *ent.ChannelAccount) (*o
 		return nil, fmt.Errorf("read grant of account %d on channel %s: %w", account.ID, g.channel.Name, err)
 	}
 
-	if projected.OAuth == nil {
-		return nil, fmt.Errorf("account %d on channel %s holds no oauth grant", account.ID, g.channel.Name)
+	// Antigravity keeps its grant in the legacy field, so it has no OAuth object
+	// to hand the provider; the refresh token is recovered from that string.
+	credentials := projected.OAuth
+	if credentials == nil {
+		refreshToken, _, found := strings.Cut(projected.APIKey, "|")
+		if !found || strings.TrimSpace(refreshToken) == "" {
+			return nil, fmt.Errorf("account %d on channel %s holds no usable grant", account.ID, g.channel.Name)
+		}
+
+		credentials = &oauth.OAuthCredentials{RefreshToken: strings.TrimSpace(refreshToken)}
 	}
 
-	provider := g.channel.newAccountTokenProvider(projected.OAuth, account, g.persister, g.tokenRefreshed)
+	provider := g.channel.newAccountTokenProvider(credentials, account, g.persister, g.tokenRefreshed)
 
 	g.mu.Lock()
 	// Another request may have built it while we were outside the lock; keep the

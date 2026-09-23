@@ -1348,10 +1348,25 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 
 		return ch, nil
 	case channel.TypeAntigravity:
-		transformer, err := antigravity.NewTransformer(
-			antigravity.Config{BaseURL: c.BaseURL, APIKey: c.Credentials.APIKey},
+		// A channel holding accounts resolves the grant per request, because both
+		// halves of an Antigravity credential -- the refresh token and the project
+		// id -- belong to one account and cannot be expressed through Config.APIKey.
+		options := []antigravity.Option{
 			antigravity.WithHTTPClient(httpClient),
 			antigravity.WithOnTokenRefreshed(svc.onTokenRefreshed(c)),
+		}
+
+		if getter := svc.accountTokenGetter(ch, httpClient); getter != nil {
+			accountGetter, ok := getter.(*ChannelAccountTokenGetter)
+			if ok {
+				options = append(options, antigravity.WithPerRequestGrant(accountGetter.GrantForRequest))
+				svc.setupAccountRefresh(ch, getter)
+			}
+		}
+
+		transformer, err := antigravity.NewTransformer(
+			antigravity.Config{BaseURL: c.BaseURL, APIKey: c.Credentials.APIKey},
+			options...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create antigravity outbound transformer: %w", err)
