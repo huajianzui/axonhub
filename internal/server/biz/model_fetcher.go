@@ -410,6 +410,14 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 		}
 
 		if ch.Credentials.IsOAuth() {
+			// Ask the provider which models this account may use. The compiled
+			// list is only a fallback, because it cannot know the account's plan.
+			if supportsUpstreamModelDiscovery(ch.Type) {
+				fallback := f.getDefaultModelsByType(ctx, ch.Type)
+
+				return &FetchModelsResult{Models: f.discoverOrFallbackModels(ctx, ch, fallback)}, nil
+			}
+
 			if models := f.getDefaultModelsByType(ctx, ch.Type); models != nil {
 				return &FetchModelsResult{Models: models}, nil
 			}
