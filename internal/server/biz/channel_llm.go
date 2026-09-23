@@ -884,6 +884,25 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 	case channel.TypeClaudecode:
 		// Check if using OAuth credentials first
 		if c.Credentials.IsOAuth() {
+			// A channel holding accounts selects one per request instead of being
+			// bound to a single grant at build time. With one account this returns
+			// that account, so a migrated channel behaves as it did inline.
+			if accountTokens := NewChannelAccountTokenGetter(ch); accountTokens != nil {
+				transformer, err := claudecode.NewOutboundTransformer(claudecode.Params{
+					TokenProvider:   accountTokens,
+					BaseURL:         c.BaseURL,
+					IsOfficial:      true,
+					AccountIdentity: strconv.Itoa(c.ID),
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to create claudecode outbound transformer: %w", err)
+				}
+
+				ch.Outbound = transformer
+
+				return ch, nil
+			}
+
 			credsJSON := strings.TrimSpace(c.Credentials.APIKey)
 			if c.Credentials.OAuth != nil {
 				o := c.Credentials.OAuth

@@ -83,6 +83,11 @@ type Channel struct {
 	// cachedDisabledKeySet caches disabled key lookup set for O(1) check
 	cachedDisabledKeySet map[string]struct{}
 
+	// cachedAccounts holds the channel's routable subscription accounts, most
+	// preferred first. Populated once when the channel is loaded, so per-request
+	// account selection needs no database access.
+	cachedAccounts []*ent.ChannelAccount
+
 	// apiKeyOverride, if non-empty, forces all outbound transformers to use this key
 	// instead of the channel's normal key selection. Used by the channel key test flow.
 	apiKeyOverride string
@@ -260,10 +265,9 @@ func (svc *ChannelService) reloadEnabledChannels(ctx context.Context, current []
 	}
 
 	// Accounts live in their own table, so each channel's inline credential is
-	// replaced with the one from its preferred account before the snapshot is
-	// built. All downstream consumers keep reading ChannelCredentials unchanged.
-	svc.projectAccountsOntoChannels(ctx, entities)
-
+	// replaced with the one from its preferred account. See
+	// projectAccountsOntoChannels; it runs after the snapshots are built because
+	// it also records every account on them.
 	var channels []*Channel
 
 	for _, c := range entities {
@@ -293,6 +297,12 @@ func (svc *ChannelService) reloadEnabledChannels(ctx context.Context, current []
 
 		channels = append(channels, channel)
 	}
+
+	// Accounts live in their own table. Project each channel's preferred account
+	// onto its credential, and remember every routable account so per-request
+	// selection and token refresh can reach them without a database read. All
+	// downstream consumers keep reading ChannelCredentials unchanged.
+	svc.projectAccountsOntoChannels(ctx, channels)
 
 	log.Info(ctx, "loaded channels", log.Int("count", len(channels)))
 
@@ -415,12 +425,12 @@ func (svc *ChannelService) SetEnabledChannelsForTest(channels []*Channel) {
 // touching any of the code that consumes Channel.Credentials. It is skipped
 // entirely when the account service is not wired, which is how unit tests that
 // build a ChannelService directly keep working on inline credentials.
-func (svc *ChannelService) projectAccountsOntoChannels(ctx context.Context, entities []*ent.Channel) {
+func (svc *ChannelService) projectAccountsOntoChannels(ctx context.Context, channels []*Channel) {
 	if svc.accountService == nil {
 		return
 	}
 
-	svc.accountService.ProjectAccountsOntoChannels(ctx, entities)
+	svc.accountService.ProjectAccountsOntoChannels(ctx, channels)
 }
 
 // GetChannel retrieves a specific channel by ID for testing purposes,
@@ -432,9 +442,16 @@ func (svc *ChannelService) GetChannel(ctx context.Context, channelID int) (*Chan
 		return nil, fmt.Errorf("channel not found: %w", err)
 	}
 
-	svc.projectAccountsOntoChannels(ctx, []*ent.Channel{entity})
+	ch, err := svc.buildChannelWithOutbounds(entity)
+	if err != nil {
+		return nil, err
+	}
 
-	return svc.buildChannelWithOutbounds(entity)
+	// Project after the build so the account snapshot lands on the returned
+	// snapshot, matching the bulk reload path.
+	svc.projectAccountsOntoChannels(ctx, []*Channel{ch})
+
+	return ch, nil
 }
 
 // GetChannelWithKey returns a channel with the outbound transformer's API key
@@ -447,9 +464,14 @@ func (svc *ChannelService) GetChannelWithKey(ctx context.Context, channelID int,
 		return nil, fmt.Errorf("channel not found: %w", err)
 	}
 
-	svc.projectAccountsOntoChannels(ctx, []*ent.Channel{entity})
+	ch, err := svc.buildChannelWithOutbounds(entity, apiKey)
+	if err != nil {
+		return nil, err
+	}
 
-	return svc.buildChannelWithOutbounds(entity, apiKey)
+	svc.projectAccountsOntoChannels(ctx, []*Channel{ch})
+
+	return ch, nil
 }
 
 // ListModelsInput represents the input for listing models with filters.

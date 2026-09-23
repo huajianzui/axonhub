@@ -38,6 +38,20 @@ func accountServiceWithoutAccounts(t *testing.T) (*ChannelService, context.Conte
 	return newTestChannelService(client), ctx, client
 }
 
+// buildSnapshotsForTest loads the channel entities and wraps them the way the
+// channel cache does, so the projection sees the same shape it does in
+// production.
+func buildSnapshotsForTest(ctx context.Context, client *ent.Client) []*Channel {
+	entities := client.Channel.Query().AllX(ctx)
+
+	snapshots := make([]*Channel, 0, len(entities))
+	for _, e := range entities {
+		snapshots = append(snapshots, &Channel{Channel: e})
+	}
+
+	return snapshots
+}
+
 func TestProjectAccountsReplacesInlineCredential(t *testing.T) {
 	t.Parallel()
 
@@ -68,11 +82,11 @@ func TestProjectAccountsReplacesInlineCredential(t *testing.T) {
 		SetCredentialFingerprint("cred-1").
 		SaveX(ctx)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	require.Len(t, entities, 1)
-	projected := entities[0].Credentials
+	require.Len(t, snapshots, 1)
+	projected := snapshots[0].Credentials
 	require.True(t, projected.IsOAuth())
 	require.Equal(t, "account-access", projected.OAuth.AccessToken)
 	require.Equal(t, "account-refresh", projected.OAuth.RefreshToken)
@@ -95,14 +109,14 @@ func TestProjectAccountsIsNoOpWithoutAccounts(t *testing.T) {
 		SaveX(ctx)
 	require.NotZero(t, ch.ID)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
 	// A channel with no account keeps its inline credential: this is what makes
 	// the projection a no-op for every existing installation.
-	require.Len(t, entities, 1)
-	require.True(t, entities[0].Credentials.IsOAuth())
-	require.Equal(t, "inline-access", entities[0].Credentials.OAuth.AccessToken)
+	require.Len(t, snapshots, 1)
+	require.True(t, snapshots[0].Credentials.IsOAuth())
+	require.Equal(t, "inline-access", snapshots[0].Credentials.OAuth.AccessToken)
 }
 
 func TestProjectAccountsIgnoresIneligibleAccounts(t *testing.T) {
@@ -144,10 +158,10 @@ func TestProjectAccountsIgnoresIneligibleAccounts(t *testing.T) {
 		SetAuthState(channelaccount.AuthStateReauthorizationRequired).
 		SaveX(ctx)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	require.Equal(t, "inline-access", entities[0].Credentials.OAuth.AccessToken,
+	require.Equal(t, "inline-access", snapshots[0].Credentials.OAuth.AccessToken,
 		"only enabled, ready accounts may replace the inline credential")
 }
 
@@ -186,10 +200,10 @@ func TestProjectAccountsPrefersHeaviestAccount(t *testing.T) {
 	createAccount("high", "high-access", 90)
 	createAccount("mid", "mid-access", 50)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	require.Equal(t, "high-access", entities[0].Credentials.OAuth.AccessToken)
+	require.Equal(t, "high-access", snapshots[0].Credentials.OAuth.AccessToken)
 }
 
 func TestProjectAccountsKeepsInlineCredentialOnUnusableAccount(t *testing.T) {
@@ -216,12 +230,12 @@ func TestProjectAccountsKeepsInlineCredentialOnUnusableAccount(t *testing.T) {
 		SetCredentialFingerprint("cred-corrupt").
 		SaveX(ctx)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
 	// Losing a working credential because an account row is malformed would be a
 	// worse failure than ignoring the row.
-	require.Equal(t, "inline-access", entities[0].Credentials.OAuth.AccessToken)
+	require.Equal(t, "inline-access", snapshots[0].Credentials.OAuth.AccessToken)
 }
 
 func TestProjectAccountsLeavesOtherChannelsAlone(t *testing.T) {
@@ -263,12 +277,12 @@ func TestProjectAccountsLeavesOtherChannelsAlone(t *testing.T) {
 		SetCredentialFingerprint("cred").
 		SaveX(ctx)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	byID := make(map[int]*ent.Channel, len(entities))
-	for _, c := range entities {
-		byID[c.ID] = c
+	byID := make(map[int]*Channel, len(snapshots))
+	for _, s := range snapshots {
+		byID[s.ID] = s
 	}
 
 	require.Equal(t, "account-access", byID[withAccount.ID].Credentials.OAuth.AccessToken)
@@ -282,7 +296,7 @@ func TestProjectAccountsHandlesEmptyInput(t *testing.T) {
 
 	// Must not query or panic on an empty reload.
 	svc.projectAccountsOntoChannels(ctx, nil)
-	svc.projectAccountsOntoChannels(ctx, []*ent.Channel{})
+	svc.projectAccountsOntoChannels(ctx, []*Channel{})
 }
 
 // TestProjectAccountsSkippedWhenServiceUnwired guards every unit test that
@@ -316,10 +330,10 @@ func TestProjectAccountsSkippedWhenServiceUnwired(t *testing.T) {
 		SetCredentialFingerprint("cred").
 		SaveX(ctx)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	require.Equal(t, "inline-access", entities[0].Credentials.OAuth.AccessToken,
+	require.Equal(t, "inline-access", snapshots[0].Credentials.OAuth.AccessToken,
 		"an unwired account service must leave inline credentials alone")
 }
 
@@ -389,9 +403,9 @@ func TestProjectAccountsIgnoresLowerWeightedAccount(t *testing.T) {
 	createAccount("light", "light-access", 1)
 	createAccount("heavy", "heavy-access", 100)
 
-	entities := client.Channel.Query().AllX(ctx)
-	svc.projectAccountsOntoChannels(ctx, entities)
+	snapshots := buildSnapshotsForTest(ctx, client)
+	svc.projectAccountsOntoChannels(ctx, snapshots)
 
-	require.Equal(t, "heavy-access", entities[0].Credentials.OAuth.AccessToken)
-	require.NotEqual(t, "light-access", entities[0].Credentials.OAuth.AccessToken)
+	require.Equal(t, "heavy-access", snapshots[0].Credentials.OAuth.AccessToken)
+	require.NotEqual(t, "light-access", snapshots[0].Credentials.OAuth.AccessToken)
 }

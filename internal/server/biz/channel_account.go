@@ -58,12 +58,19 @@ func NewChannelAccountService(params ChannelAccountServiceParams) *ChannelAccoun
 //     API-key channel), so its inline credential stays authoritative;
 //   - the account's grant cannot be projected, because losing a working
 //     credential to a malformed row is a worse failure than ignoring the row.
-func (svc *ChannelAccountService) ProjectAccountsOntoChannels(ctx context.Context, channels []*ent.Channel) {
+func (svc *ChannelAccountService) ProjectAccountsOntoChannels(ctx context.Context, channels []*Channel) {
 	if len(channels) == 0 {
 		return
 	}
 
-	byChannel, err := svc.routableAccountsByChannel(ctx, channelIDs(channels))
+	entities := make([]*ent.Channel, 0, len(channels))
+	for _, ch := range channels {
+		if ch != nil && ch.Channel != nil {
+			entities = append(entities, ch.Channel)
+		}
+	}
+
+	byChannel, err := svc.routableAccountsByChannel(ctx, channelIDs(entities))
 	if err != nil {
 		log.Warn(ctx, "failed to load channel accounts, keeping inline credentials", log.Cause(err))
 
@@ -75,7 +82,17 @@ func (svc *ChannelAccountService) ProjectAccountsOntoChannels(ctx context.Contex
 	}
 
 	for _, ch := range channels {
+		if ch == nil || ch.Channel == nil {
+			continue
+		}
+
 		accounts := byChannel[ch.ID]
+
+		// Every account, not just the selected one, is remembered on the channel
+		// so per-request selection and token refresh can reach them without
+		// touching the database.
+		ch.cachedAccounts = accounts
+
 		if len(accounts) == 0 {
 			continue
 		}
@@ -103,6 +120,7 @@ func (svc *ChannelAccountService) ProjectAccountsOntoChannels(ctx context.Contex
 				log.Int("channel_id", ch.ID),
 				log.String("channel", ch.Name),
 				log.Int("account_id", accounts[0].ID),
+				log.Int("account_count", len(accounts)),
 			)
 		}
 	}
