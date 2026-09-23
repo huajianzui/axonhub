@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/channelaccount"
 	"github.com/looplj/axonhub/internal/ent/schema/schematype"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
@@ -417,6 +419,74 @@ func (svc *ChannelService) SetEnabledChannelsForTest(channels []*Channel) {
 			return current, lastUpdate, false, nil
 		},
 	})
+}
+
+// accountCredentialRefPrefix identifies a per-account credential reference.
+const accountCredentialRefPrefix = "account:"
+
+// parseAccountCredentialRef reports whether a credential reference addresses a
+// single account, and returns its id.
+func parseAccountCredentialRef(ref string) (int, bool) {
+	if !strings.HasPrefix(ref, accountCredentialRefPrefix) {
+		return 0, false
+	}
+
+	id, err := strconv.Atoi(strings.TrimPrefix(ref, accountCredentialRefPrefix))
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+
+	return id, true
+}
+
+// channelHoldsAccount reports whether the channel actually has that account, so
+// a stale reference from a deleted account cannot affect the channel.
+func (svc *ChannelService) channelHoldsAccount(ctx context.Context, channelID, accountID int) bool {
+	exists, err := svc.entFromContext(ctx).ChannelAccount.Query().
+		Where(
+			channelaccount.IDEQ(accountID),
+			channelaccount.ChannelIDEQ(channelID),
+		).
+		Exist(ctx)
+	if err != nil {
+		log.Warn(ctx, "failed to check account membership",
+			log.Int("channel_id", channelID),
+			log.Int("account_id", accountID),
+			log.Cause(err),
+		)
+
+		return false
+	}
+
+	return exists
+}
+
+// channelHasRoutableAccount reports whether the channel still has an account that
+// may serve traffic, other than the one just disabled.
+//
+// This is what keeps a single failing account from disabling a channel that has
+// others to fall back on.
+func (svc *ChannelService) channelHasRoutableAccount(ctx context.Context, channelID, exceptAccountID int) bool {
+	exists, err := svc.entFromContext(ctx).ChannelAccount.Query().
+		Where(
+			channelaccount.ChannelIDEQ(channelID),
+			channelaccount.IDNEQ(exceptAccountID),
+			channelaccount.EnabledEQ(true),
+			channelaccount.AuthStateEQ(channelaccount.AuthStateReady),
+		).
+		Exist(ctx)
+	if err != nil {
+		log.Warn(ctx, "failed to check for routable accounts",
+			log.Int("channel_id", channelID),
+			log.Cause(err),
+		)
+
+		// Fail closed: treat the channel as exhausted rather than leaving a
+		// failing credential in rotation.
+		return false
+	}
+
+	return exists
 }
 
 // accountTokenGetter builds an account-selecting token getter for a channel, or

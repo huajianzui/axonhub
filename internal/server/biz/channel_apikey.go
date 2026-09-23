@@ -47,6 +47,15 @@ func (svc *ChannelService) DisableAPIKey(
 
 	found := slices.Contains(allKeys, key)
 	if !found {
+		// A per-account reference addresses one subscription account rather than
+		// the channel's own credential. It is accepted when the channel actually
+		// holds that account, so a stale reference cannot disable a channel.
+		if accountID, ok := parseAccountCredentialRef(key); ok && svc.channelHoldsAccount(ctx, channelID, accountID) {
+			found = true
+		}
+	}
+
+	if !found {
 		// key 不在 credentials 中，忽略
 		return nil
 	}
@@ -79,6 +88,15 @@ func (svc *ChannelService) DisableAPIKey(
 
 	// 计算 enabled 凭证
 	enabledKeys := ch.Credentials.GetEnabledCredentialRefs(newDisabledKeys)
+
+	// A channel holding accounts keeps serving on the remaining accounts, so the
+	// channel is only disabled once every account is unusable. An account
+	// reference therefore does not by itself imply the channel is exhausted.
+	if accountID, ok := parseAccountCredentialRef(key); ok {
+		if svc.channelHasRoutableAccount(ctx, channelID, accountID) {
+			enabledKeys = append(enabledKeys, key)
+		}
+	}
 
 	// 更新 channel
 	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).

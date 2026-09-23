@@ -104,6 +104,18 @@ func (g *ChannelAccountTokenGetter) Get(ctx context.Context) (*oauth.OAuthCreden
 		return nil, err
 	}
 
+	// Install the mutable value container before recording anything. The
+	// getter's context parameter is by value and this interface cannot hand a
+	// derived context back to its caller, so the record only survives if the
+	// request already shares a container. Without this the chosen account would
+	// be invisible to the failure bookkeeping, which would then attribute the
+	// outcome to the whole channel and disable every account at once.
+	ctx = contexts.EnsureContainer(ctx)
+
+	// Record the choice so auto-disable, recovery and usage attribution address
+	// this account rather than the channel.
+	contexts.WithChannelAPIKey(ctx, accountCredentialRef(account.ID))
+
 	// The provider refreshes when the stored credential is near expiry and
 	// de-duplicates concurrent refreshes, so a burst of requests on a cold
 	// account results in one token exchange.
@@ -111,10 +123,6 @@ func (g *ChannelAccountTokenGetter) Get(ctx context.Context) (*oauth.OAuthCreden
 	if err != nil {
 		return nil, fmt.Errorf("get credential for account %d on channel %s: %w", account.ID, g.channel.Name, err)
 	}
-
-	// Record the choice so auto-disable, recovery and usage attribution can
-	// address this account instead of the whole channel.
-	contexts.WithChannelAPIKey(ctx, accountCredentialRef(account.ID))
 
 	return creds, nil
 }
