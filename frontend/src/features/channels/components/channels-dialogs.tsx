@@ -30,6 +30,7 @@ import { ChannelsSystemSettingsDialog } from './channels-system-settings-dialog'
 import { ChannelsTestDialog } from './channels-test-dialog';
 import { ChannelsTestHistoryDrawer } from './channels-test-history-drawer';
 import { ChannelsTransformOptionsDialog } from './channels-transform-options-dialog';
+import { ChannelAccountsDialog } from './channel-accounts-dialog';
 
 export function ChannelsDialogs() {
   const { open, setOpen, currentRow: partialCurrentRow, setCurrentRow, selectedChannels } = useChannels();
@@ -366,6 +367,21 @@ export function ChannelsDialogs() {
                 }, 500);
               }
             }}
+          />
+
+          <ChannelAccountsDialog
+            key={`channel-accounts-${currentRow.id}`}
+            open={open === 'accounts'}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setOpen(null);
+                setTimeout(() => {
+                  setCurrentRow(null);
+                }, 500);
+              }
+            }}
+            channelId={currentRow.id}
+            channelName={currentRow.name}
           />
         </>
       )}

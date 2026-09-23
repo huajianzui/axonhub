@@ -33,6 +33,7 @@ type ChannelsDialogType =
   | 'transformOptions'
   | 'rateLimit'
   | 'availability'
+  | 'accounts'
   | 'keyManagement'
   | 'disabledAPIKeys'
   | 'endpoints';

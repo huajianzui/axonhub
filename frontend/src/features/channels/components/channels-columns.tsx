@@ -24,6 +24,7 @@ import {
   IconHistory,
   IconPlugConnected,
   IconClockPlay,
+  IconUsers,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -215,6 +216,16 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
           >
             <IconAdjustments size={16} className='mr-2' />
             {t('channels.dialogs.settings.overrides.action')}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              setCurrentRow(channel);
+              setOpen('accounts');
+            }}
+          >
+            <IconUsers size={16} className='mr-2' />
+            {t('channels.dialogs.accounts.action')}
           </DropdownMenuItem>
 
           <DropdownMenuItem

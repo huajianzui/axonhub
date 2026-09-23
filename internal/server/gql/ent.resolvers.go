@@ -130,12 +130,18 @@ func (r *channelResolver) ProviderQuotaStatus(ctx context.Context, obj *ent.Chan
 
 // ID is the resolver for the id field.
 func (r *channelAccountResolver) ID(ctx context.Context, obj *ent.ChannelAccount) (*objects.GUID, error) {
-	panic(fmt.Errorf("not implemented: ID - id"))
+	return &objects.GUID{
+		Type: ent.TypeChannelAccount,
+		ID:   obj.ID,
+	}, nil
 }
 
 // ChannelID is the resolver for the channelID field.
 func (r *channelAccountResolver) ChannelID(ctx context.Context, obj *ent.ChannelAccount) (*objects.GUID, error) {
-	panic(fmt.Errorf("not implemented: ChannelID - channelID"))
+	return &objects.GUID{
+		Type: ent.TypeChannel,
+		ID:   obj.ChannelID,
+	}, nil
 }
 
 // ID is the resolver for the id field.
@@ -392,7 +398,18 @@ func (r *queryResolver) Channels(ctx context.Context, after *entgql.Cursor[int],
 
 // ChannelAccounts is the resolver for the channelAccounts field.
 func (r *queryResolver) ChannelAccounts(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelAccountOrder, where *ent.ChannelAccountWhereInput) (*ent.ChannelAccountConnection, error) {
-	panic(fmt.Errorf("not implemented: ChannelAccounts - channelAccounts"))
+	if err := validatePaginationArgs(first, last); err != nil {
+		return nil, err
+	}
+
+	if orderBy != nil && orderBy.Field.String() == "CREATED_AT" {
+		orderBy.Field = ent.DefaultChannelAccountOrder.Field
+	}
+
+	return r.client.ChannelAccount.Query().Paginate(ctx, after, first, before, last,
+		ent.WithChannelAccountOrder(orderBy),
+		ent.WithChannelAccountFilter(where.Filter),
+	)
 }
 
 // ChannelOverrideTemplates is the resolver for the channelOverrideTemplates field.
