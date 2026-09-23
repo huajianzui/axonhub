@@ -15,7 +15,6 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/openai/codex"
 	xaisubscription "github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
-
 // newAccountTokenProvider builds the provider-specific token provider for one
 // account of this channel.
 //
@@ -77,6 +76,64 @@ func (c *Channel) newAccountTokenProvider(
 			OnRefreshed: onRefresh,
 		})
 	}
+}
+
+// SetAccountEnabled pauses or resumes one account.
+//
+// Disabling is an operator action, independent of the grant's authorization
+// state: a paused account keeps its credential and its history, so it can be
+// resumed later. The channel is touched either way so the runtime picks up the
+// change, because the account cache is only rebuilt when a channel row moves.
+func (svc *ChannelAccountService) SetAccountEnabled(ctx context.Context, channelID, accountID int, enabled bool) error {
+	account, err := svc.accountInChannel(ctx, channelID, accountID)
+	if err != nil {
+		return err
+	}
+
+	if _, err := account.Update().SetEnabled(enabled).Save(ctx); err != nil {
+		return fmt.Errorf("set account %d enabled=%t: %w", accountID, enabled, err)
+	}
+
+	return svc.TouchChannel(ctx, channelID)
+}
+
+// DeleteAccount removes one account from a channel.
+//
+// The row is soft-deleted so its history survives. Deleting the last account
+// leaves the channel with no account, which makes it fall back to its own
+// inline credential; that is deliberate, because removing an account should not
+// be able to take a channel out of service.
+func (svc *ChannelAccountService) DeleteAccount(ctx context.Context, channelID, accountID int) error {
+	account, err := svc.accountInChannel(ctx, channelID, accountID)
+	if err != nil {
+		return err
+	}
+
+	if err := svc.entFromContext(ctx).ChannelAccount.DeleteOneID(account.ID).Exec(ctx); err != nil {
+		return fmt.Errorf("delete account %d: %w", accountID, err)
+	}
+
+	return svc.TouchChannel(ctx, channelID)
+}
+
+// accountInChannel loads an account, refusing one that belongs to another
+// channel so a mistyped id cannot reach across channels.
+func (svc *ChannelAccountService) accountInChannel(ctx context.Context, channelID, accountID int) (*ent.ChannelAccount, error) {
+	account, err := svc.entFromContext(ctx).ChannelAccount.Query().
+		Where(
+			channelaccount.IDEQ(accountID),
+			channelaccount.ChannelIDEQ(channelID),
+		).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, fmt.Errorf("account %d not found on channel %d", accountID, channelID)
+		}
+
+		return nil, fmt.Errorf("load account %d on channel %d: %w", accountID, channelID, err)
+	}
+
+	return account, nil
 }
 
 // PersistAccountCredential writes a refreshed credential back to its account row.

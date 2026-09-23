@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/looplj/axonhub/llm/oauth"
 )
@@ -51,9 +52,22 @@ func AccountCredentialFromChannelCredentials(creds ChannelCredentials) (map[stri
 	return raw, nil
 }
 
+// AccountCredentialExpiry reports when the stored credential expires, if it
+// carries an expiry at all.
+//
+// A grant stored in the legacy field has no expiry to read, which is why the
+// second return value exists rather than a zero time being meaningful.
+func AccountCredentialExpiry(raw map[string]any) (time.Time, bool) {
+	projected, err := ChannelCredentialsFromAccountCredential(raw)
+	if err != nil || projected.OAuth == nil || projected.OAuth.ExpiresAt.IsZero() {
+		return time.Time{}, false
+	}
+
+	return projected.OAuth.ExpiresAt, true
+}
+
 // ChannelCredentialsFromAccountCredential projects an account's stored
 // credential back onto the channel credential shape.
-//
 // This is the inverse of AccountCredentialFromChannelCredentials and is what
 // lets the rest of the code keep reading ChannelCredentials unchanged while the
 // value originates from an account row.

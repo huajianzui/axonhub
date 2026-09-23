@@ -36,6 +36,7 @@ type Handlers struct {
 	Antigravity    *api.AntigravityHandlers
 	Copilot        *api.CopilotHandlers
 	OAuthCallback  *api.OAuthCallbackHandlers
+	ChannelAccount *api.ChannelAccountHandlers
 	RequestContent *api.RequestContentHandlers
 	OIDC           *api.OIDCHandlers
 	RequestPreview *api.RequestPreviewHandlers
@@ -133,6 +134,10 @@ func SetupRoutes(server *Server, handlers Handlers, client *ent.Client, services
 		// opens an authorization URL, so subscription authorization completes
 		// without pasting the callback URL back by hand.
 		handlers.OAuthCallback.RegisterRoutes(adminGroup)
+
+		// Subscription account management. A channel may hold several accounts,
+		// which is what lets one channel serve multiple subscription logins.
+		handlers.ChannelAccount.RegisterRoutes(adminGroup)
 
 		// OIDC Manual Linking
 		adminGroup.GET("/oidc/link/:provider", handlers.OIDC.GetLinkAuthorizeURL)
