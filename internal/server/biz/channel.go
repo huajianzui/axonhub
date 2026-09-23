@@ -96,6 +96,11 @@ type ChannelServiceParams struct {
 	SystemService   *SystemService
 	WebhookNotifier *WebhookNotifier
 	HttpClient      *httpclient.HttpClient
+
+	// AccountService projects a channel's subscription accounts onto its
+	// credential field. Declared as a pointer so tests that build a
+	// ChannelService literal keep compiling without it.
+	AccountService *ChannelAccountService `optional:"true"`
 }
 
 func NewChannelService(params ChannelServiceParams) *ChannelService {
@@ -110,6 +115,7 @@ func NewChannelService(params ChannelServiceParams) *ChannelService {
 		apiKeyErrorCounts:         make(map[int]map[string]map[int]int),
 		apiKeyRuleActionsInFlight: make(map[int]map[string]bool),
 		perfCh:                    make(chan *PerformanceRecord, 1024),
+		accountService:            params.AccountService,
 	}
 	watcherMode := params.CacheConfig.Mode
 	if watcherMode == "" {
@@ -172,6 +178,11 @@ type ChannelService struct {
 	// providerQuotaInvalidator discards stale quota state after a channel changes
 	// its provider identity. Optional for direct service construction in tests.
 	providerQuotaInvalidator ChannelProviderQuotaInvalidator
+
+	// accountService reads the subscription accounts of a channel. Optional:
+	// when nil, channels keep using the credential stored on their own row,
+	// which is what unit tests that build channels directly rely on.
+	accountService *ChannelAccountService
 
 	// perfWindowSeconds is the configurable sliding window size for performance metrics (in seconds)
 	// If not set (0), uses defaultPerformanceWindowSize (600 seconds = 10 minutes)
@@ -247,6 +258,11 @@ func (svc *ChannelService) reloadEnabledChannels(ctx context.Context, current []
 	if err != nil {
 		return current, lastUpdate, false, err
 	}
+
+	// Accounts live in their own table, so each channel's inline credential is
+	// replaced with the one from its preferred account before the snapshot is
+	// built. All downstream consumers keep reading ChannelCredentials unchanged.
+	svc.projectAccountsOntoChannels(ctx, entities)
 
 	var channels []*Channel
 
@@ -392,6 +408,21 @@ func (svc *ChannelService) SetEnabledChannelsForTest(channels []*Channel) {
 	})
 }
 
+// projectAccountsOntoChannels replaces each channel's inline credential with the
+// one from its preferred subscription account.
+//
+// This is the seam that puts the account table on the read path without
+// touching any of the code that consumes Channel.Credentials. It is skipped
+// entirely when the account service is not wired, which is how unit tests that
+// build a ChannelService directly keep working on inline credentials.
+func (svc *ChannelService) projectAccountsOntoChannels(ctx context.Context, entities []*ent.Channel) {
+	if svc.accountService == nil {
+		return
+	}
+
+	svc.accountService.ProjectAccountsOntoChannels(ctx, entities)
+}
+
 // GetChannel retrieves a specific channel by ID for testing purposes,
 // including disabled channels. This bypasses the normal enabled-only filtering.
 func (svc *ChannelService) GetChannel(ctx context.Context, channelID int) (*Channel, error) {
@@ -400,6 +431,8 @@ func (svc *ChannelService) GetChannel(ctx context.Context, channelID int) (*Chan
 	if err != nil {
 		return nil, fmt.Errorf("channel not found: %w", err)
 	}
+
+	svc.projectAccountsOntoChannels(ctx, []*ent.Channel{entity})
 
 	return svc.buildChannelWithOutbounds(entity)
 }
@@ -413,6 +446,8 @@ func (svc *ChannelService) GetChannelWithKey(ctx context.Context, channelID int,
 	if err != nil {
 		return nil, fmt.Errorf("channel not found: %w", err)
 	}
+
+	svc.projectAccountsOntoChannels(ctx, []*ent.Channel{entity})
 
 	return svc.buildChannelWithOutbounds(entity, apiKey)
 }

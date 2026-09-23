@@ -26,14 +26,19 @@ func newAccountTestClient(t *testing.T) (*ent.Client, context.Context) {
 }
 
 // newAccountTestChannel creates a minimal enabled channel to hang accounts on.
-func newAccountTestChannel(ctx context.Context, client *ent.Client, channelType channel.Type, name string) *ent.Channel {
+func newAccountTestChannel(ctx context.Context, client *ent.Client, channelType channel.Type, name string, creds ...objects.ChannelCredentials) *ent.Channel {
+	credential := objects.ChannelCredentials{}
+	if len(creds) > 0 {
+		credential = creds[0]
+	}
+
 	return client.Channel.Create().
 		SetType(channelType).
 		SetName(name).
 		SetStatus(channel.StatusEnabled).
 		SetSupportedModels([]string{"test-model"}).
 		SetDefaultTestModel("test-model").
-		SetCredentials(objects.ChannelCredentials{}).
+		SetCredentials(credential).
 		SaveX(ctx)
 }
 

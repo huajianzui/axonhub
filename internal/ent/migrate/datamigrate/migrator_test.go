@@ -357,6 +357,54 @@ func TestMigrator_Run_BetaMigrationAcrossTenBoundary(t *testing.T) {
 	assert.Equal(t, 0, older.migrateCalls, "beta9 migration must be skipped on a beta10 system")
 }
 
+// TestMigrator_Run_RunsReleasedVersionMigration guards a trap that silently
+// skips a backfill: a migration version that matches an already released
+// version never runs on a system that has upgraded to it.
+//
+// The source tree's VERSION file lags the released tag, so a migration named
+// after the version in the tree can collide with a release that already exists.
+// When that happens the comparison treats the migration as already applied and
+// returns without doing anything, which would leave existing credentials
+// unbackfilled.
+func TestMigrator_Run_RunsMigrationNewerThanReleasedVersion(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=1")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	systemService := biz.NewSystemService(biz.SystemServiceParams{})
+	err := systemService.Initialize(ctx, &biz.InitializeSystemParams{
+		OwnerEmail:     "owner@example.com",
+		OwnerPassword:  "password123",
+		OwnerFirstName: "System",
+		OwnerLastName:  "Owner",
+		BrandName:      "Test Brand",
+	})
+	require.NoError(t, err)
+
+	// The system runs the most recently released version, even though the source
+	// tree still reports the older one.
+	require.NoError(t, systemService.SetVersion(ctx, "v1.0.0-beta10"))
+
+	migrator := datamigrate.NewMigratorWithoutRegistrations(client)
+	backfill := &mockMigrator{version: "v1.0.0-beta11"}
+	migrator.Register(backfill)
+
+	require.NoError(t, migrator.Run(ctx))
+	assert.Equal(t, 1, backfill.migrateCalls, "a migration newer than the released version must still run")
+
+	// And it must not replay once the system has caught up to it.
+	require.NoError(t, systemService.SetVersion(ctx, "v1.0.0-beta11"))
+	replayed := &mockMigrator{version: "v1.0.0-beta11"}
+	migrator = datamigrate.NewMigratorWithoutRegistrations(client)
+	migrator.Register(replayed)
+
+	require.NoError(t, migrator.Run(ctx))
+	assert.Equal(t, 0, replayed.migrateCalls, "the migration must not replay once applied")
+}
+
 func TestMigrator_Run_EmptySystemVersion(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=1")
 	defer client.Close()

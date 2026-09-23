@@ -13,17 +13,17 @@ import (
 	"github.com/looplj/axonhub/internal/pkg/xtime"
 )
 
-// V1_0_0_Beta10 implements DataMigrator for version 1.0.0-beta10.
-type V1_0_0_Beta10 struct{}
+// V1_0_0_Beta11 implements DataMigrator for version 1.0.0-beta11.
+type V1_0_0_Beta11 struct{}
 
-// NewV1_0_0_Beta10 creates the v1.0.0-beta10 data migrator.
-func NewV1_0_0_Beta10() *V1_0_0_Beta10 {
-	return &V1_0_0_Beta10{}
+// NewV1_0_0_Beta11 creates the v1.0.0-beta11 data migrator.
+func NewV1_0_0_Beta11() *V1_0_0_Beta11 {
+	return &V1_0_0_Beta11{}
 }
 
 // Version returns the migration version.
-func (v *V1_0_0_Beta10) Version() string {
-	return "v1.0.0-beta10"
+func (v *V1_0_0_Beta11) Version() string {
+	return "v1.0.0-beta11"
 }
 
 // Migrate lifts every subscription channel's inline OAuth credential into a
@@ -44,7 +44,7 @@ func (v *V1_0_0_Beta10) Version() string {
 //
 // Idempotent: a channel that already has an account for the same credential is
 // skipped, so a re-run after a partial failure converges.
-func (v *V1_0_0_Beta10) Migrate(ctx context.Context, client *ent.Client) error {
+func (v *V1_0_0_Beta11) Migrate(ctx context.Context, client *ent.Client) error {
 	ctx = authz.WithSystemBypass(ctx, "database-migrate")
 
 	channels, err := client.Channel.Query().

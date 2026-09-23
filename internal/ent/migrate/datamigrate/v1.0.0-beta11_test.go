@@ -16,16 +16,16 @@ import (
 	"github.com/looplj/axonhub/llm/oauth"
 )
 
-func newBeta10Client(t *testing.T, name string) (*ent.Client, context.Context) {
+func newBeta11Client(t *testing.T, name string) (*ent.Client, context.Context) {
 	t.Helper()
 
-	client := enttest.NewEntClient(t, "sqlite3", "file:beta10-"+name+"?mode=memory&_fk=1")
+	client := enttest.NewEntClient(t, "sqlite3", "file:beta11-"+name+"?mode=memory&_fk=1")
 	t.Cleanup(func() { _ = client.Close() })
 
 	return client, authz.WithTestBypass(context.Background())
 }
 
-func newBeta10Channel(ctx context.Context, client *ent.Client, channelType channel.Type, name string, creds objects.ChannelCredentials) *ent.Channel {
+func newBeta11Channel(ctx context.Context, client *ent.Client, channelType channel.Type, name string, creds objects.ChannelCredentials) *ent.Channel {
 	return client.Channel.Create().
 		SetType(channelType).
 		SetName(name).
@@ -36,17 +36,17 @@ func newBeta10Channel(ctx context.Context, client *ent.Client, channelType chann
 		SaveX(ctx)
 }
 
-func TestV1_0_0_Beta10_BackfillsOAuthChannel(t *testing.T) {
-	client, ctx := newBeta10Client(t, "oauth")
+func TestV1_0_0_Beta11_BackfillsOAuthChannel(t *testing.T) {
+	client, ctx := newBeta11Client(t, "oauth")
 
 	creds := &oauth.OAuthCredentials{
 		AccessToken:  "access-1",
 		RefreshToken: "refresh-1",
 		TokenType:    "Bearer",
 	}
-	ch := newBeta10Channel(ctx, client, channel.TypeClaudecode, "claude-main", objects.ChannelCredentials{OAuth: creds})
+	ch := newBeta11Channel(ctx, client, channel.TypeClaudecode, "claude-main", objects.ChannelCredentials{OAuth: creds})
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 
 	accounts := ch.QueryAccounts().AllX(ctx)
 	require.Len(t, accounts, 1)
@@ -72,57 +72,57 @@ func TestV1_0_0_Beta10_BackfillsOAuthChannel(t *testing.T) {
 	require.Equal(t, "access-1", reloaded.Credentials.OAuth.AccessToken)
 }
 
-func TestV1_0_0_Beta10_BackfillsAntigravityLegacyString(t *testing.T) {
-	client, ctx := newBeta10Client(t, "antigravity")
+func TestV1_0_0_Beta11_BackfillsAntigravityLegacyString(t *testing.T) {
+	client, ctx := newBeta11Client(t, "antigravity")
 
 	// Antigravity predates the OAuth object and stores "<refreshToken>|<projectID>"
 	// in the legacy APIKey field, so IsOAuth is false for it.
-	ch := newBeta10Channel(ctx, client, channel.TypeAntigravity, "ag-main", objects.ChannelCredentials{
+	ch := newBeta11Channel(ctx, client, channel.TypeAntigravity, "ag-main", objects.ChannelCredentials{
 		APIKey: "ag-refresh|project-123",
 	})
 	require.False(t, ch.Credentials.IsOAuth(), "antigravity credentials must not satisfy IsOAuth")
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 
 	accounts := ch.QueryAccounts().AllX(ctx)
 	require.Len(t, accounts, 1, "antigravity must not be skipped")
 	require.Equal(t, "ag-refresh|project-123", accounts[0].Credentials["apiKey"])
 }
 
-func TestV1_0_0_Beta10_SkipsChannelsWithoutAGrant(t *testing.T) {
-	client, ctx := newBeta10Client(t, "skip")
+func TestV1_0_0_Beta11_SkipsChannelsWithoutAGrant(t *testing.T) {
+	client, ctx := newBeta11Client(t, "skip")
 
 	// An API-key channel.
-	apiKeyChannel := newBeta10Channel(ctx, client, channel.TypeOpenai, "openai-main", objects.ChannelCredentials{APIKey: "sk-abc"})
+	apiKeyChannel := newBeta11Channel(ctx, client, channel.TypeOpenai, "openai-main", objects.ChannelCredentials{APIKey: "sk-abc"})
 	// A subscription channel type that was never authorized.
-	emptyOAuth := newBeta10Channel(ctx, client, channel.TypeClaudecode, "claude-empty", objects.ChannelCredentials{})
+	emptyOAuth := newBeta11Channel(ctx, client, channel.TypeClaudecode, "claude-empty", objects.ChannelCredentials{})
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 
 	require.Empty(t, apiKeyChannel.QueryAccounts().AllX(ctx), "an api key channel must not get an account")
 	require.Empty(t, emptyOAuth.QueryAccounts().AllX(ctx), "an unauthorized channel must not get an account")
 	require.Empty(t, client.ChannelAccount.Query().AllX(ctx))
 }
 
-func TestV1_0_0_Beta10_IsIdempotent(t *testing.T) {
-	client, ctx := newBeta10Client(t, "idempotent")
+func TestV1_0_0_Beta11_IsIdempotent(t *testing.T) {
+	client, ctx := newBeta11Client(t, "idempotent")
 
-	ch := newBeta10Channel(ctx, client, channel.TypeCodex, "codex-main", objects.ChannelCredentials{
+	ch := newBeta11Channel(ctx, client, channel.TypeCodex, "codex-main", objects.ChannelCredentials{
 		OAuth: &oauth.OAuthCredentials{AccessToken: "a", RefreshToken: "r"},
 	})
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 	require.Len(t, ch.QueryAccounts().AllX(ctx), 1)
 
 	// A second pass must not duplicate the grant.
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 	require.Len(t, ch.QueryAccounts().AllX(ctx), 1)
 }
 
-func TestV1_0_0_Beta10_TouchesMigratedChannel(t *testing.T) {
-	client, ctx := newBeta10Client(t, "touch")
+func TestV1_0_0_Beta11_TouchesMigratedChannel(t *testing.T) {
+	client, ctx := newBeta11Client(t, "touch")
 
-	ch := newBeta10Channel(ctx, client, channel.TypeClaudecode, "claude-touch", objects.ChannelCredentials{
+	ch := newBeta11Channel(ctx, client, channel.TypeClaudecode, "claude-touch", objects.ChannelCredentials{
 		OAuth: &oauth.OAuthCredentials{AccessToken: "a", RefreshToken: "r"},
 	})
 
@@ -132,7 +132,7 @@ func TestV1_0_0_Beta10_TouchesMigratedChannel(t *testing.T) {
 	_, err := client.Channel.UpdateOneID(ch.ID).SetUpdatedAt(past).Save(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 
 	// The channel cache only reloads when a channel row moves, and the account
 	// lives in its own table, so the migration must bump the channel.
@@ -140,13 +140,13 @@ func TestV1_0_0_Beta10_TouchesMigratedChannel(t *testing.T) {
 	require.True(t, after.After(past), "migrated channel updated_at must advance past %s, got %s", past, after)
 }
 
-func TestV1_0_0_Beta10_LeavesUnmigratedChannelUntouched(t *testing.T) {
-	client, ctx := newBeta10Client(t, "untouched")
+func TestV1_0_0_Beta11_LeavesUnmigratedChannelUntouched(t *testing.T) {
+	client, ctx := newBeta11Client(t, "untouched")
 
-	ch := newBeta10Channel(ctx, client, channel.TypeOpenai, "openai-untouched", objects.ChannelCredentials{APIKey: "sk-abc"})
+	ch := newBeta11Channel(ctx, client, channel.TypeOpenai, "openai-untouched", objects.ChannelCredentials{APIKey: "sk-abc"})
 	before := ch.UpdatedAt
 
-	require.NoError(t, datamigrate.NewV1_0_0_Beta10().Migrate(ctx, client))
+	require.NoError(t, datamigrate.NewV1_0_0_Beta11().Migrate(ctx, client))
 
 	after := client.Channel.GetX(ctx, ch.ID).UpdatedAt
 	require.Equal(t, before, after, "a channel with no grant must not be touched")

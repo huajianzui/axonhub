@@ -32,7 +32,7 @@ func NewMigrator(client *ent.Client) *Migrator {
 	migrator.Register(NewV1_0_0_Beta7())
 	migrator.Register(NewV1_0_0_Beta8())
 	migrator.Register(NewV1_0_0_Beta9())
-	migrator.Register(NewV1_0_0_Beta10())
+	migrator.Register(NewV1_0_0_Beta11())
 
 	return migrator
 }
