@@ -116,6 +116,20 @@ func (_u *ChannelAccountUpdate) ClearIdentityFingerprint() *ChannelAccountUpdate
 	return _u
 }
 
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (_u *ChannelAccountUpdate) SetCredentialFingerprint(v string) *ChannelAccountUpdate {
+	_u.mutation.SetCredentialFingerprint(v)
+	return _u
+}
+
+// SetNillableCredentialFingerprint sets the "credential_fingerprint" field if the given value is not nil.
+func (_u *ChannelAccountUpdate) SetNillableCredentialFingerprint(v *string) *ChannelAccountUpdate {
+	if v != nil {
+		_u.SetCredentialFingerprint(*v)
+	}
+	return _u
+}
+
 // SetCredentials sets the "credentials" field.
 func (_u *ChannelAccountUpdate) SetCredentials(v map[string]interface{}) *ChannelAccountUpdate {
 	_u.mutation.SetCredentials(v)
@@ -336,6 +350,9 @@ func (_u *ChannelAccountUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if _u.mutation.IdentityFingerprintCleared() {
 		_spec.ClearField(channelaccount.FieldIdentityFingerprint, field.TypeString)
 	}
+	if value, ok := _u.mutation.CredentialFingerprint(); ok {
+		_spec.SetField(channelaccount.FieldCredentialFingerprint, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Credentials(); ok {
 		_spec.SetField(channelaccount.FieldCredentials, field.TypeJSON, value)
 	}
@@ -475,6 +492,20 @@ func (_u *ChannelAccountUpdateOne) SetNillableIdentityFingerprint(v *string) *Ch
 // ClearIdentityFingerprint clears the value of the "identity_fingerprint" field.
 func (_u *ChannelAccountUpdateOne) ClearIdentityFingerprint() *ChannelAccountUpdateOne {
 	_u.mutation.ClearIdentityFingerprint()
+	return _u
+}
+
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (_u *ChannelAccountUpdateOne) SetCredentialFingerprint(v string) *ChannelAccountUpdateOne {
+	_u.mutation.SetCredentialFingerprint(v)
+	return _u
+}
+
+// SetNillableCredentialFingerprint sets the "credential_fingerprint" field if the given value is not nil.
+func (_u *ChannelAccountUpdateOne) SetNillableCredentialFingerprint(v *string) *ChannelAccountUpdateOne {
+	if v != nil {
+		_u.SetCredentialFingerprint(*v)
+	}
 	return _u
 }
 
@@ -727,6 +758,9 @@ func (_u *ChannelAccountUpdateOne) sqlSave(ctx context.Context) (_node *ChannelA
 	}
 	if _u.mutation.IdentityFingerprintCleared() {
 		_spec.ClearField(channelaccount.FieldIdentityFingerprint, field.TypeString)
+	}
+	if value, ok := _u.mutation.CredentialFingerprint(); ok {
+		_spec.SetField(channelaccount.FieldCredentialFingerprint, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Credentials(); ok {
 		_spec.SetField(channelaccount.FieldCredentials, field.TypeJSON, value)

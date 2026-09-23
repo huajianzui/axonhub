@@ -132,20 +132,21 @@ var schemaGraph = func() *sqlgraph.Schema {
 		},
 		Type: "ChannelAccount",
 		Fields: map[string]*sqlgraph.FieldSpec{
-			channelaccount.FieldCreatedAt:           {Type: field.TypeTime, Column: channelaccount.FieldCreatedAt},
-			channelaccount.FieldUpdatedAt:           {Type: field.TypeTime, Column: channelaccount.FieldUpdatedAt},
-			channelaccount.FieldDeletedAt:           {Type: field.TypeInt, Column: channelaccount.FieldDeletedAt},
-			channelaccount.FieldChannelID:           {Type: field.TypeInt, Column: channelaccount.FieldChannelID},
-			channelaccount.FieldName:                {Type: field.TypeString, Column: channelaccount.FieldName},
-			channelaccount.FieldIdentity:            {Type: field.TypeString, Column: channelaccount.FieldIdentity},
-			channelaccount.FieldIdentityFingerprint: {Type: field.TypeString, Column: channelaccount.FieldIdentityFingerprint},
-			channelaccount.FieldCredentials:         {Type: field.TypeJSON, Column: channelaccount.FieldCredentials},
-			channelaccount.FieldAuthState:           {Type: field.TypeEnum, Column: channelaccount.FieldAuthState},
-			channelaccount.FieldAuthErrorCode:       {Type: field.TypeString, Column: channelaccount.FieldAuthErrorCode},
-			channelaccount.FieldEnabled:             {Type: field.TypeBool, Column: channelaccount.FieldEnabled},
-			channelaccount.FieldWeight:              {Type: field.TypeInt, Column: channelaccount.FieldWeight},
-			channelaccount.FieldExpiresAt:           {Type: field.TypeTime, Column: channelaccount.FieldExpiresAt},
-			channelaccount.FieldLastRefreshAt:       {Type: field.TypeTime, Column: channelaccount.FieldLastRefreshAt},
+			channelaccount.FieldCreatedAt:             {Type: field.TypeTime, Column: channelaccount.FieldCreatedAt},
+			channelaccount.FieldUpdatedAt:             {Type: field.TypeTime, Column: channelaccount.FieldUpdatedAt},
+			channelaccount.FieldDeletedAt:             {Type: field.TypeInt, Column: channelaccount.FieldDeletedAt},
+			channelaccount.FieldChannelID:             {Type: field.TypeInt, Column: channelaccount.FieldChannelID},
+			channelaccount.FieldName:                  {Type: field.TypeString, Column: channelaccount.FieldName},
+			channelaccount.FieldIdentity:              {Type: field.TypeString, Column: channelaccount.FieldIdentity},
+			channelaccount.FieldIdentityFingerprint:   {Type: field.TypeString, Column: channelaccount.FieldIdentityFingerprint},
+			channelaccount.FieldCredentialFingerprint: {Type: field.TypeString, Column: channelaccount.FieldCredentialFingerprint},
+			channelaccount.FieldCredentials:           {Type: field.TypeJSON, Column: channelaccount.FieldCredentials},
+			channelaccount.FieldAuthState:             {Type: field.TypeEnum, Column: channelaccount.FieldAuthState},
+			channelaccount.FieldAuthErrorCode:         {Type: field.TypeString, Column: channelaccount.FieldAuthErrorCode},
+			channelaccount.FieldEnabled:               {Type: field.TypeBool, Column: channelaccount.FieldEnabled},
+			channelaccount.FieldWeight:                {Type: field.TypeInt, Column: channelaccount.FieldWeight},
+			channelaccount.FieldExpiresAt:             {Type: field.TypeTime, Column: channelaccount.FieldExpiresAt},
+			channelaccount.FieldLastRefreshAt:         {Type: field.TypeTime, Column: channelaccount.FieldLastRefreshAt},
 		},
 	}
 	graph.Nodes[4] = &sqlgraph.Node{
@@ -2024,6 +2025,11 @@ func (f *ChannelAccountFilter) WhereIdentity(p entql.StringP) {
 // WhereIdentityFingerprint applies the entql string predicate on the identity_fingerprint field.
 func (f *ChannelAccountFilter) WhereIdentityFingerprint(p entql.StringP) {
 	f.Where(p.Field(channelaccount.FieldIdentityFingerprint))
+}
+
+// WhereCredentialFingerprint applies the entql string predicate on the credential_fingerprint field.
+func (f *ChannelAccountFilter) WhereCredentialFingerprint(p entql.StringP) {
+	f.Where(p.Field(channelaccount.FieldCredentialFingerprint))
 }
 
 // WhereCredentials applies the entql json.RawMessage predicate on the credentials field.

@@ -387,20 +387,21 @@ type ComplexityRoot struct {
 	}
 
 	ChannelAccount struct {
-		AuthErrorCode       func(childComplexity int) int
-		AuthState           func(childComplexity int) int
-		Channel             func(childComplexity int) int
-		ChannelID           func(childComplexity int) int
-		CreatedAt           func(childComplexity int) int
-		Enabled             func(childComplexity int) int
-		ExpiresAt           func(childComplexity int) int
-		ID                  func(childComplexity int) int
-		Identity            func(childComplexity int) int
-		IdentityFingerprint func(childComplexity int) int
-		LastRefreshAt       func(childComplexity int) int
-		Name                func(childComplexity int) int
-		UpdatedAt           func(childComplexity int) int
-		Weight              func(childComplexity int) int
+		AuthErrorCode         func(childComplexity int) int
+		AuthState             func(childComplexity int) int
+		Channel               func(childComplexity int) int
+		ChannelID             func(childComplexity int) int
+		CreatedAt             func(childComplexity int) int
+		CredentialFingerprint func(childComplexity int) int
+		Enabled               func(childComplexity int) int
+		ExpiresAt             func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		Identity              func(childComplexity int) int
+		IdentityFingerprint   func(childComplexity int) int
+		LastRefreshAt         func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		UpdatedAt             func(childComplexity int) int
+		Weight                func(childComplexity int) int
 	}
 
 	ChannelAccountConnection struct {
@@ -3797,6 +3798,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ChannelAccount.CreatedAt(childComplexity), true
+	case "ChannelAccount.credentialFingerprint":
+		if e.complexity.ChannelAccount.CredentialFingerprint == nil {
+			break
+		}
+
+		return e.complexity.ChannelAccount.CredentialFingerprint(childComplexity), true
 	case "ChannelAccount.enabled":
 		if e.complexity.ChannelAccount.Enabled == nil {
 			break
@@ -21740,6 +21747,8 @@ func (ec *executionContext) fieldContext_Channel_accounts(_ context.Context, fie
 				return ec.fieldContext_ChannelAccount_identity(ctx, field)
 			case "identityFingerprint":
 				return ec.fieldContext_ChannelAccount_identityFingerprint(ctx, field)
+			case "credentialFingerprint":
+				return ec.fieldContext_ChannelAccount_credentialFingerprint(ctx, field)
 			case "authState":
 				return ec.fieldContext_ChannelAccount_authState(ctx, field)
 			case "authErrorCode":
@@ -22147,6 +22156,35 @@ func (ec *executionContext) _ChannelAccount_identityFingerprint(ctx context.Cont
 }
 
 func (ec *executionContext) fieldContext_ChannelAccount_identityFingerprint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelAccount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChannelAccount_credentialFingerprint(ctx context.Context, field graphql.CollectedField, obj *ent.ChannelAccount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ChannelAccount_credentialFingerprint,
+		func(ctx context.Context) (any, error) {
+			return obj.CredentialFingerprint, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ChannelAccount_credentialFingerprint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ChannelAccount",
 		Field:      field,
@@ -22571,6 +22609,8 @@ func (ec *executionContext) fieldContext_ChannelAccountEdge_node(_ context.Conte
 				return ec.fieldContext_ChannelAccount_identity(ctx, field)
 			case "identityFingerprint":
 				return ec.fieldContext_ChannelAccount_identityFingerprint(ctx, field)
+			case "credentialFingerprint":
+				return ec.fieldContext_ChannelAccount_credentialFingerprint(ctx, field)
 			case "authState":
 				return ec.fieldContext_ChannelAccount_authState(ctx, field)
 			case "authErrorCode":
@@ -67876,7 +67916,7 @@ func (ec *executionContext) unmarshalInputChannelAccountWhereInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "channelID", "channelIDNEQ", "channelIDIn", "channelIDNotIn", "name", "nameNEQ", "nameIn", "nameNotIn", "nameGT", "nameGTE", "nameLT", "nameLTE", "nameContains", "nameHasPrefix", "nameHasSuffix", "nameIsNil", "nameNotNil", "nameEqualFold", "nameContainsFold", "identity", "identityNEQ", "identityIn", "identityNotIn", "identityGT", "identityGTE", "identityLT", "identityLTE", "identityContains", "identityHasPrefix", "identityHasSuffix", "identityIsNil", "identityNotNil", "identityEqualFold", "identityContainsFold", "identityFingerprint", "identityFingerprintNEQ", "identityFingerprintIn", "identityFingerprintNotIn", "identityFingerprintGT", "identityFingerprintGTE", "identityFingerprintLT", "identityFingerprintLTE", "identityFingerprintContains", "identityFingerprintHasPrefix", "identityFingerprintHasSuffix", "identityFingerprintIsNil", "identityFingerprintNotNil", "identityFingerprintEqualFold", "identityFingerprintContainsFold", "authState", "authStateNEQ", "authStateIn", "authStateNotIn", "authErrorCode", "authErrorCodeNEQ", "authErrorCodeIn", "authErrorCodeNotIn", "authErrorCodeGT", "authErrorCodeGTE", "authErrorCodeLT", "authErrorCodeLTE", "authErrorCodeContains", "authErrorCodeHasPrefix", "authErrorCodeHasSuffix", "authErrorCodeIsNil", "authErrorCodeNotNil", "authErrorCodeEqualFold", "authErrorCodeContainsFold", "enabled", "enabledNEQ", "weight", "weightNEQ", "weightIn", "weightNotIn", "weightGT", "weightGTE", "weightLT", "weightLTE", "expiresAt", "expiresAtNEQ", "expiresAtIn", "expiresAtNotIn", "expiresAtGT", "expiresAtGTE", "expiresAtLT", "expiresAtLTE", "expiresAtIsNil", "expiresAtNotNil", "lastRefreshAt", "lastRefreshAtNEQ", "lastRefreshAtIn", "lastRefreshAtNotIn", "lastRefreshAtGT", "lastRefreshAtGTE", "lastRefreshAtLT", "lastRefreshAtLTE", "lastRefreshAtIsNil", "lastRefreshAtNotNil", "hasChannel", "hasChannelWith"}
+	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "channelID", "channelIDNEQ", "channelIDIn", "channelIDNotIn", "name", "nameNEQ", "nameIn", "nameNotIn", "nameGT", "nameGTE", "nameLT", "nameLTE", "nameContains", "nameHasPrefix", "nameHasSuffix", "nameIsNil", "nameNotNil", "nameEqualFold", "nameContainsFold", "identity", "identityNEQ", "identityIn", "identityNotIn", "identityGT", "identityGTE", "identityLT", "identityLTE", "identityContains", "identityHasPrefix", "identityHasSuffix", "identityIsNil", "identityNotNil", "identityEqualFold", "identityContainsFold", "identityFingerprint", "identityFingerprintNEQ", "identityFingerprintIn", "identityFingerprintNotIn", "identityFingerprintGT", "identityFingerprintGTE", "identityFingerprintLT", "identityFingerprintLTE", "identityFingerprintContains", "identityFingerprintHasPrefix", "identityFingerprintHasSuffix", "identityFingerprintIsNil", "identityFingerprintNotNil", "identityFingerprintEqualFold", "identityFingerprintContainsFold", "credentialFingerprint", "credentialFingerprintNEQ", "credentialFingerprintIn", "credentialFingerprintNotIn", "credentialFingerprintGT", "credentialFingerprintGTE", "credentialFingerprintLT", "credentialFingerprintLTE", "credentialFingerprintContains", "credentialFingerprintHasPrefix", "credentialFingerprintHasSuffix", "credentialFingerprintEqualFold", "credentialFingerprintContainsFold", "authState", "authStateNEQ", "authStateIn", "authStateNotIn", "authErrorCode", "authErrorCodeNEQ", "authErrorCodeIn", "authErrorCodeNotIn", "authErrorCodeGT", "authErrorCodeGTE", "authErrorCodeLT", "authErrorCodeLTE", "authErrorCodeContains", "authErrorCodeHasPrefix", "authErrorCodeHasSuffix", "authErrorCodeIsNil", "authErrorCodeNotNil", "authErrorCodeEqualFold", "authErrorCodeContainsFold", "enabled", "enabledNEQ", "weight", "weightNEQ", "weightIn", "weightNotIn", "weightGT", "weightGTE", "weightLT", "weightLTE", "expiresAt", "expiresAtNEQ", "expiresAtIn", "expiresAtNotIn", "expiresAtGT", "expiresAtGTE", "expiresAtLT", "expiresAtLTE", "expiresAtIsNil", "expiresAtNotNil", "lastRefreshAt", "lastRefreshAtNEQ", "lastRefreshAtIn", "lastRefreshAtNotIn", "lastRefreshAtGT", "lastRefreshAtGTE", "lastRefreshAtLT", "lastRefreshAtLTE", "lastRefreshAtIsNil", "lastRefreshAtNotNil", "hasChannel", "hasChannelWith"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -68463,6 +68503,97 @@ func (ec *executionContext) unmarshalInputChannelAccountWhereInput(ctx context.C
 				return it, err
 			}
 			it.IdentityFingerprintContainsFold = data
+		case "credentialFingerprint":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprint"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprint = data
+		case "credentialFingerprintNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintNEQ"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintNEQ = data
+		case "credentialFingerprintIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintIn = data
+		case "credentialFingerprintNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintNotIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintNotIn = data
+		case "credentialFingerprintGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintGT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintGT = data
+		case "credentialFingerprintGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintGTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintGTE = data
+		case "credentialFingerprintLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintLT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintLT = data
+		case "credentialFingerprintLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintLTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintLTE = data
+		case "credentialFingerprintContains":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintContains"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintContains = data
+		case "credentialFingerprintHasPrefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintHasPrefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintHasPrefix = data
+		case "credentialFingerprintHasSuffix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintHasSuffix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintHasSuffix = data
+		case "credentialFingerprintEqualFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintEqualFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintEqualFold = data
+		case "credentialFingerprintContainsFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credentialFingerprintContainsFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CredentialFingerprintContainsFold = data
 		case "authState":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authState"))
 			data, err := ec.unmarshalOChannelAccountAuthState2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚋchannelaccountᚐAuthState(ctx, v)
@@ -96558,6 +96689,11 @@ func (ec *executionContext) _ChannelAccount(ctx context.Context, sel ast.Selecti
 			out.Values[i] = ec._ChannelAccount_identity(ctx, field, obj)
 		case "identityFingerprint":
 			out.Values[i] = ec._ChannelAccount_identityFingerprint(ctx, field, obj)
+		case "credentialFingerprint":
+			out.Values[i] = ec._ChannelAccount_credentialFingerprint(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "authState":
 			out.Values[i] = ec._ChannelAccount_authState(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

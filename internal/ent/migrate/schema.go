@@ -142,6 +142,7 @@ var (
 		{Name: "name", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "identity", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "identity_fingerprint", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "credential_fingerprint", Type: field.TypeString},
 		{Name: "credentials", Type: field.TypeJSON},
 		{Name: "auth_state", Type: field.TypeEnum, Enums: []string{"ready", "refreshing", "reauthorization_required", "outcome_unknown"}, Default: "ready"},
 		{Name: "auth_error_code", Type: field.TypeString, Nullable: true, Default: ""},
@@ -159,26 +160,31 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "channel_accounts_channels_accounts",
-				Columns:    []*schema.Column{ChannelAccountsColumns[14]},
+				Columns:    []*schema.Column{ChannelAccountsColumns[15]},
 				RefColumns: []*schema.Column{ChannelsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "channel_accounts_by_channel_identity",
+				Name:    "channel_accounts_by_channel_credential",
 				Unique:  true,
-				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[6], ChannelAccountsColumns[3]},
+				Columns: []*schema.Column{ChannelAccountsColumns[15], ChannelAccountsColumns[7], ChannelAccountsColumns[3]},
+			},
+			{
+				Name:    "channel_accounts_by_channel_identity",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelAccountsColumns[15], ChannelAccountsColumns[5], ChannelAccountsColumns[3]},
 			},
 			{
 				Name:    "channel_accounts_by_channel",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[3]},
+				Columns: []*schema.Column{ChannelAccountsColumns[15], ChannelAccountsColumns[3]},
 			},
 			{
 				Name:    "channel_accounts_by_channel_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelAccountsColumns[14], ChannelAccountsColumns[10], ChannelAccountsColumns[3]},
+				Columns: []*schema.Column{ChannelAccountsColumns[15], ChannelAccountsColumns[11], ChannelAccountsColumns[3]},
 			},
 		},
 	}

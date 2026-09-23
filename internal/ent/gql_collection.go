@@ -991,6 +991,11 @@ func (_q *ChannelAccountQuery) collectField(ctx context.Context, oneNode bool, o
 				selectedFields = append(selectedFields, channelaccount.FieldIdentityFingerprint)
 				fieldSeen[channelaccount.FieldIdentityFingerprint] = struct{}{}
 			}
+		case "credentialFingerprint":
+			if _, ok := fieldSeen[channelaccount.FieldCredentialFingerprint]; !ok {
+				selectedFields = append(selectedFields, channelaccount.FieldCredentialFingerprint)
+				fieldSeen[channelaccount.FieldCredentialFingerprint] = struct{}{}
+			}
 		case "authState":
 			if _, ok := fieldSeen[channelaccount.FieldAuthState]; !ok {
 				selectedFields = append(selectedFields, channelaccount.FieldAuthState)

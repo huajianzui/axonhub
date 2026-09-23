@@ -47,7 +47,7 @@ func TestChannelAccountSchemaMigrates(t *testing.T) {
 		SetChannelID(ch.ID).
 		SetName("work").
 		SetIdentity("acct-uuid/org-uuid").
-		SetIdentityFingerprint("fingerprint-1").
+		SetCredentialFingerprint("cred-1").
 		SetCredentials(map[string]any{"access_token": "token-1", "refresh_token": "refresh-1"}).
 		Save(ctx)
 	require.NoError(t, err)
@@ -66,35 +66,40 @@ func TestChannelAccountSchemaMigrates(t *testing.T) {
 	require.Equal(t, ch.ID, fromChannel.QueryChannel().OnlyX(ctx).ID)
 }
 
-func TestChannelAccountIdentityIsUniquePerChannel(t *testing.T) {
+func TestChannelAccountGrantIsUniquePerChannel(t *testing.T) {
 	t.Parallel()
 
 	client, ctx := newAccountTestClient(t)
 	first := newAccountTestChannel(ctx, client, channel.TypeClaudecode, "channel-a")
 	second := newAccountTestChannel(ctx, client, channel.TypeClaudecode, "channel-b")
 
-	create := func(channelID int, fingerprint string) error {
+	create := func(channelID int, credentialFingerprint string) error {
 		_, err := client.ChannelAccount.Create().
 			SetChannelID(channelID).
 			SetIdentity("same-identity").
-			SetIdentityFingerprint(fingerprint).
+			SetCredentialFingerprint(credentialFingerprint).
 			SetCredentials(map[string]any{"access_token": "t"}).
 			Save(ctx)
 
 		return err
 	}
 
-	require.NoError(t, create(first.ID, "same-fingerprint"), "first account on a channel")
+	require.NoError(t, create(first.ID, "same-grant"), "first account on a channel")
 
-	// Re-authorizing the same account on the same channel must collide, so the
-	// account service can update in place instead of duplicating the grant.
-	require.Error(t, create(first.ID, "same-fingerprint"), "duplicate identity on the same channel must fail")
+	// Re-importing the same grant on the same channel must collide, so the
+	// account service can update in place instead of duplicating it. This holds
+	// even when the provider never revealed an identity.
+	require.Error(t, create(first.ID, "same-grant"), "duplicate grant on the same channel must fail")
 
-	// A different channel may hold the same account.
-	require.NoError(t, create(second.ID, "same-fingerprint"), "same identity on another channel is allowed")
+	// A different channel may hold the same grant.
+	require.NoError(t, create(second.ID, "same-grant"), "same grant on another channel is allowed")
 
 	require.Len(t, first.QueryAccounts().AllX(ctx), 1)
 	require.Len(t, second.QueryAccounts().AllX(ctx), 1)
+
+	// Distinct grants on one channel are of course allowed.
+	require.NoError(t, create(first.ID, "other-grant"))
+	require.Len(t, first.QueryAccounts().AllX(ctx), 2)
 }
 
 func TestChannelAccountMultiplePerChannel(t *testing.T) {
@@ -107,7 +112,7 @@ func TestChannelAccountMultiplePerChannel(t *testing.T) {
 		client.ChannelAccount.Create().
 			SetChannelID(ch.ID).
 			SetIdentity(identity).
-			SetIdentityFingerprint("fp-" + identity).
+			SetCredentialFingerprint("cred-" + identity).
 			SetCredentials(map[string]any{"access_token": "token-" + identity}).
 			SaveX(ctx)
 	}
@@ -134,7 +139,7 @@ func TestChannelAccountDisabledAccountSurvives(t *testing.T) {
 	account := client.ChannelAccount.Create().
 		SetChannelID(ch.ID).
 		SetIdentity("acct-paused").
-		SetIdentityFingerprint("fp-paused").
+		SetCredentialFingerprint("cred-paused").
 		SetCredentials(map[string]any{"access_token": "t"}).
 		SaveX(ctx)
 
@@ -174,7 +179,7 @@ func TestChannelAccountSoftDeleteKeepsTheRow(t *testing.T) {
 	account := client.ChannelAccount.Create().
 		SetChannelID(ch.ID).
 		SetIdentity("acct-1").
-		SetIdentityFingerprint("fp-1").
+		SetCredentialFingerprint("cred-1").
 		SetCredentials(map[string]any{"access_token": "t"}).
 		SaveX(ctx)
 

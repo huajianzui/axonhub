@@ -113,6 +113,12 @@ func (_c *ChannelAccountCreate) SetNillableIdentityFingerprint(v *string) *Chann
 	return _c
 }
 
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (_c *ChannelAccountCreate) SetCredentialFingerprint(v string) *ChannelAccountCreate {
+	_c.mutation.SetCredentialFingerprint(v)
+	return _c
+}
+
 // SetCredentials sets the "credentials" field.
 func (_c *ChannelAccountCreate) SetCredentials(v map[string]interface{}) *ChannelAccountCreate {
 	_c.mutation.SetCredentials(v)
@@ -302,6 +308,9 @@ func (_c *ChannelAccountCreate) check() error {
 	if _, ok := _c.mutation.ChannelID(); !ok {
 		return &ValidationError{Name: "channel_id", err: errors.New(`ent: missing required field "ChannelAccount.channel_id"`)}
 	}
+	if _, ok := _c.mutation.CredentialFingerprint(); !ok {
+		return &ValidationError{Name: "credential_fingerprint", err: errors.New(`ent: missing required field "ChannelAccount.credential_fingerprint"`)}
+	}
 	if _, ok := _c.mutation.Credentials(); !ok {
 		return &ValidationError{Name: "credentials", err: errors.New(`ent: missing required field "ChannelAccount.credentials"`)}
 	}
@@ -372,6 +381,10 @@ func (_c *ChannelAccountCreate) createSpec() (*ChannelAccount, *sqlgraph.CreateS
 	if value, ok := _c.mutation.IdentityFingerprint(); ok {
 		_spec.SetField(channelaccount.FieldIdentityFingerprint, field.TypeString, value)
 		_node.IdentityFingerprint = value
+	}
+	if value, ok := _c.mutation.CredentialFingerprint(); ok {
+		_spec.SetField(channelaccount.FieldCredentialFingerprint, field.TypeString, value)
+		_node.CredentialFingerprint = value
 	}
 	if value, ok := _c.mutation.Credentials(); ok {
 		_spec.SetField(channelaccount.FieldCredentials, field.TypeJSON, value)
@@ -551,6 +564,18 @@ func (u *ChannelAccountUpsert) UpdateIdentityFingerprint() *ChannelAccountUpsert
 // ClearIdentityFingerprint clears the value of the "identity_fingerprint" field.
 func (u *ChannelAccountUpsert) ClearIdentityFingerprint() *ChannelAccountUpsert {
 	u.SetNull(channelaccount.FieldIdentityFingerprint)
+	return u
+}
+
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (u *ChannelAccountUpsert) SetCredentialFingerprint(v string) *ChannelAccountUpsert {
+	u.Set(channelaccount.FieldCredentialFingerprint, v)
+	return u
+}
+
+// UpdateCredentialFingerprint sets the "credential_fingerprint" field to the value that was provided on create.
+func (u *ChannelAccountUpsert) UpdateCredentialFingerprint() *ChannelAccountUpsert {
+	u.SetExcluded(channelaccount.FieldCredentialFingerprint)
 	return u
 }
 
@@ -805,6 +830,20 @@ func (u *ChannelAccountUpsertOne) UpdateIdentityFingerprint() *ChannelAccountUps
 func (u *ChannelAccountUpsertOne) ClearIdentityFingerprint() *ChannelAccountUpsertOne {
 	return u.Update(func(s *ChannelAccountUpsert) {
 		s.ClearIdentityFingerprint()
+	})
+}
+
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (u *ChannelAccountUpsertOne) SetCredentialFingerprint(v string) *ChannelAccountUpsertOne {
+	return u.Update(func(s *ChannelAccountUpsert) {
+		s.SetCredentialFingerprint(v)
+	})
+}
+
+// UpdateCredentialFingerprint sets the "credential_fingerprint" field to the value that was provided on create.
+func (u *ChannelAccountUpsertOne) UpdateCredentialFingerprint() *ChannelAccountUpsertOne {
+	return u.Update(func(s *ChannelAccountUpsert) {
+		s.UpdateCredentialFingerprint()
 	})
 }
 
@@ -1243,6 +1282,20 @@ func (u *ChannelAccountUpsertBulk) UpdateIdentityFingerprint() *ChannelAccountUp
 func (u *ChannelAccountUpsertBulk) ClearIdentityFingerprint() *ChannelAccountUpsertBulk {
 	return u.Update(func(s *ChannelAccountUpsert) {
 		s.ClearIdentityFingerprint()
+	})
+}
+
+// SetCredentialFingerprint sets the "credential_fingerprint" field.
+func (u *ChannelAccountUpsertBulk) SetCredentialFingerprint(v string) *ChannelAccountUpsertBulk {
+	return u.Update(func(s *ChannelAccountUpsert) {
+		s.SetCredentialFingerprint(v)
+	})
+}
+
+// UpdateCredentialFingerprint sets the "credential_fingerprint" field to the value that was provided on create.
+func (u *ChannelAccountUpsertBulk) UpdateCredentialFingerprint() *ChannelAccountUpsertBulk {
+	return u.Update(func(s *ChannelAccountUpsert) {
+		s.UpdateCredentialFingerprint()
 	})
 }
 

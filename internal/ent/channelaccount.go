@@ -29,10 +29,12 @@ type ChannelAccount struct {
 	ChannelID int `json:"channel_id,omitempty"`
 	// Operator-facing label. Often the account email, but never required to be.
 	Name string `json:"name,omitempty"`
-	// Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty until the grant is parsed.
+	// Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty when the provider does not reveal one; the credential fingerprint still identifies the grant.
 	Identity string `json:"identity,omitempty"`
-	// Stable digest of the identity, used to detect re-authorization of the same account.
+	// Stable digest of the identity, used to detect re-authorization of the same account. Empty when the identity is unknown.
 	IdentityFingerprint string `json:"identity_fingerprint,omitempty"`
+	// Stable digest of the credential itself. Always computable, so it is what makes a grant unique per channel.
+	CredentialFingerprint string `json:"credential_fingerprint,omitempty"`
 	// The granted credential. Its shape is owned by the provider transformer, not by this schema.
 	Credentials map[string]interface{} `json:"-"`
 	// Lifecycle of the grant. Only a ready account serves traffic.
@@ -86,7 +88,7 @@ func (*ChannelAccount) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case channelaccount.FieldID, channelaccount.FieldDeletedAt, channelaccount.FieldChannelID, channelaccount.FieldWeight:
 			values[i] = new(sql.NullInt64)
-		case channelaccount.FieldName, channelaccount.FieldIdentity, channelaccount.FieldIdentityFingerprint, channelaccount.FieldAuthState, channelaccount.FieldAuthErrorCode:
+		case channelaccount.FieldName, channelaccount.FieldIdentity, channelaccount.FieldIdentityFingerprint, channelaccount.FieldCredentialFingerprint, channelaccount.FieldAuthState, channelaccount.FieldAuthErrorCode:
 			values[i] = new(sql.NullString)
 		case channelaccount.FieldCreatedAt, channelaccount.FieldUpdatedAt, channelaccount.FieldExpiresAt, channelaccount.FieldLastRefreshAt:
 			values[i] = new(sql.NullTime)
@@ -152,6 +154,12 @@ func (_m *ChannelAccount) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field identity_fingerprint", values[i])
 			} else if value.Valid {
 				_m.IdentityFingerprint = value.String
+			}
+		case channelaccount.FieldCredentialFingerprint:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field credential_fingerprint", values[i])
+			} else if value.Valid {
+				_m.CredentialFingerprint = value.String
 			}
 		case channelaccount.FieldCredentials:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -260,6 +268,9 @@ func (_m *ChannelAccount) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("identity_fingerprint=")
 	builder.WriteString(_m.IdentityFingerprint)
+	builder.WriteString(", ")
+	builder.WriteString("credential_fingerprint=")
+	builder.WriteString(_m.CredentialFingerprint)
 	builder.WriteString(", ")
 	builder.WriteString("credentials=<sensitive>")
 	builder.WriteString(", ")

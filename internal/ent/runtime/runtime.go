@@ -255,15 +255,15 @@ func init() {
 	// channelaccount.DefaultIdentityFingerprint holds the default value on creation for the identity_fingerprint field.
 	channelaccount.DefaultIdentityFingerprint = channelaccountDescIdentityFingerprint.Default.(string)
 	// channelaccountDescAuthErrorCode is the schema descriptor for auth_error_code field.
-	channelaccountDescAuthErrorCode := channelaccountFields[6].Descriptor()
+	channelaccountDescAuthErrorCode := channelaccountFields[7].Descriptor()
 	// channelaccount.DefaultAuthErrorCode holds the default value on creation for the auth_error_code field.
 	channelaccount.DefaultAuthErrorCode = channelaccountDescAuthErrorCode.Default.(string)
 	// channelaccountDescEnabled is the schema descriptor for enabled field.
-	channelaccountDescEnabled := channelaccountFields[7].Descriptor()
+	channelaccountDescEnabled := channelaccountFields[8].Descriptor()
 	// channelaccount.DefaultEnabled holds the default value on creation for the enabled field.
 	channelaccount.DefaultEnabled = channelaccountDescEnabled.Default.(bool)
 	// channelaccountDescWeight is the schema descriptor for weight field.
-	channelaccountDescWeight := channelaccountFields[8].Descriptor()
+	channelaccountDescWeight := channelaccountFields[9].Descriptor()
 	// channelaccount.DefaultWeight holds the default value on creation for the weight field.
 	channelaccount.DefaultWeight = channelaccountDescWeight.Default.(int)
 	channelmodelpriceMixin := schema.ChannelModelPrice{}.Mixin()

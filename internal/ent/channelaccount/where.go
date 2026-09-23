@@ -90,6 +90,11 @@ func IdentityFingerprint(v string) predicate.ChannelAccount {
 	return predicate.ChannelAccount(sql.FieldEQ(FieldIdentityFingerprint, v))
 }
 
+// CredentialFingerprint applies equality check predicate on the "credential_fingerprint" field. It's identical to CredentialFingerprintEQ.
+func CredentialFingerprint(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldEQ(FieldCredentialFingerprint, v))
+}
+
 // AuthErrorCode applies equality check predicate on the "auth_error_code" field. It's identical to AuthErrorCodeEQ.
 func AuthErrorCode(v string) predicate.ChannelAccount {
 	return predicate.ChannelAccount(sql.FieldEQ(FieldAuthErrorCode, v))
@@ -478,6 +483,71 @@ func IdentityFingerprintEqualFold(v string) predicate.ChannelAccount {
 // IdentityFingerprintContainsFold applies the ContainsFold predicate on the "identity_fingerprint" field.
 func IdentityFingerprintContainsFold(v string) predicate.ChannelAccount {
 	return predicate.ChannelAccount(sql.FieldContainsFold(FieldIdentityFingerprint, v))
+}
+
+// CredentialFingerprintEQ applies the EQ predicate on the "credential_fingerprint" field.
+func CredentialFingerprintEQ(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldEQ(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintNEQ applies the NEQ predicate on the "credential_fingerprint" field.
+func CredentialFingerprintNEQ(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldNEQ(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintIn applies the In predicate on the "credential_fingerprint" field.
+func CredentialFingerprintIn(vs ...string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldIn(FieldCredentialFingerprint, vs...))
+}
+
+// CredentialFingerprintNotIn applies the NotIn predicate on the "credential_fingerprint" field.
+func CredentialFingerprintNotIn(vs ...string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldNotIn(FieldCredentialFingerprint, vs...))
+}
+
+// CredentialFingerprintGT applies the GT predicate on the "credential_fingerprint" field.
+func CredentialFingerprintGT(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldGT(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintGTE applies the GTE predicate on the "credential_fingerprint" field.
+func CredentialFingerprintGTE(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldGTE(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintLT applies the LT predicate on the "credential_fingerprint" field.
+func CredentialFingerprintLT(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldLT(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintLTE applies the LTE predicate on the "credential_fingerprint" field.
+func CredentialFingerprintLTE(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldLTE(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintContains applies the Contains predicate on the "credential_fingerprint" field.
+func CredentialFingerprintContains(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldContains(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintHasPrefix applies the HasPrefix predicate on the "credential_fingerprint" field.
+func CredentialFingerprintHasPrefix(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldHasPrefix(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintHasSuffix applies the HasSuffix predicate on the "credential_fingerprint" field.
+func CredentialFingerprintHasSuffix(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldHasSuffix(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintEqualFold applies the EqualFold predicate on the "credential_fingerprint" field.
+func CredentialFingerprintEqualFold(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldEqualFold(FieldCredentialFingerprint, v))
+}
+
+// CredentialFingerprintContainsFold applies the ContainsFold predicate on the "credential_fingerprint" field.
+func CredentialFingerprintContainsFold(v string) predicate.ChannelAccount {
+	return predicate.ChannelAccount(sql.FieldContainsFold(FieldCredentialFingerprint, v))
 }
 
 // AuthStateEQ applies the EQ predicate on the "auth_state" field.

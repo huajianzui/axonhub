@@ -515,7 +515,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	node = &Node{
 		ID:     _m.ID,
 		Type:   "ChannelAccount",
-		Fields: make([]*Field, 13),
+		Fields: make([]*Field, 14),
 		Edges:  make([]*Edge, 1),
 	}
 	var buf []byte
@@ -567,10 +567,18 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 		Name:  "identity_fingerprint",
 		Value: string(buf),
 	}
-	if buf, err = json.Marshal(_m.Credentials); err != nil {
+	if buf, err = json.Marshal(_m.CredentialFingerprint); err != nil {
 		return nil, err
 	}
 	node.Fields[6] = &Field{
+		Type:  "string",
+		Name:  "credential_fingerprint",
+		Value: string(buf),
+	}
+	if buf, err = json.Marshal(_m.Credentials); err != nil {
+		return nil, err
+	}
+	node.Fields[7] = &Field{
 		Type:  "map[string]interface {}",
 		Name:  "credentials",
 		Value: string(buf),
@@ -578,7 +586,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.AuthState); err != nil {
 		return nil, err
 	}
-	node.Fields[7] = &Field{
+	node.Fields[8] = &Field{
 		Type:  "channelaccount.AuthState",
 		Name:  "auth_state",
 		Value: string(buf),
@@ -586,7 +594,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.AuthErrorCode); err != nil {
 		return nil, err
 	}
-	node.Fields[8] = &Field{
+	node.Fields[9] = &Field{
 		Type:  "string",
 		Name:  "auth_error_code",
 		Value: string(buf),
@@ -594,7 +602,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.Enabled); err != nil {
 		return nil, err
 	}
-	node.Fields[9] = &Field{
+	node.Fields[10] = &Field{
 		Type:  "bool",
 		Name:  "enabled",
 		Value: string(buf),
@@ -602,7 +610,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.Weight); err != nil {
 		return nil, err
 	}
-	node.Fields[10] = &Field{
+	node.Fields[11] = &Field{
 		Type:  "int",
 		Name:  "weight",
 		Value: string(buf),
@@ -610,7 +618,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.ExpiresAt); err != nil {
 		return nil, err
 	}
-	node.Fields[11] = &Field{
+	node.Fields[12] = &Field{
 		Type:  "time.Time",
 		Name:  "expires_at",
 		Value: string(buf),
@@ -618,7 +626,7 @@ func (_m *ChannelAccount) Node(ctx context.Context) (node *Node, err error) {
 	if buf, err = json.Marshal(_m.LastRefreshAt); err != nil {
 		return nil, err
 	}
-	node.Fields[12] = &Field{
+	node.Fields[13] = &Field{
 		Type:  "time.Time",
 		Name:  "last_refresh_at",
 		Value: string(buf),

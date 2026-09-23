@@ -32,6 +32,8 @@ const (
 	FieldIdentity = "identity"
 	// FieldIdentityFingerprint holds the string denoting the identity_fingerprint field in the database.
 	FieldIdentityFingerprint = "identity_fingerprint"
+	// FieldCredentialFingerprint holds the string denoting the credential_fingerprint field in the database.
+	FieldCredentialFingerprint = "credential_fingerprint"
 	// FieldCredentials holds the string denoting the credentials field in the database.
 	FieldCredentials = "credentials"
 	// FieldAuthState holds the string denoting the auth_state field in the database.
@@ -69,6 +71,7 @@ var Columns = []string{
 	FieldName,
 	FieldIdentity,
 	FieldIdentityFingerprint,
+	FieldCredentialFingerprint,
 	FieldCredentials,
 	FieldAuthState,
 	FieldAuthErrorCode,
@@ -188,6 +191,11 @@ func ByIdentity(opts ...sql.OrderTermOption) OrderOption {
 // ByIdentityFingerprint orders the results by the identity_fingerprint field.
 func ByIdentityFingerprint(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIdentityFingerprint, opts...).ToFunc()
+}
+
+// ByCredentialFingerprint orders the results by the credential_fingerprint field.
+func ByCredentialFingerprint(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCredentialFingerprint, opts...).ToFunc()
 }
 
 // ByAuthState orders the results by the auth_state field.

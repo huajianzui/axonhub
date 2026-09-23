@@ -1781,6 +1781,21 @@ type ChannelAccountWhereInput struct {
 	IdentityFingerprintEqualFold    *string  `json:"identityFingerprintEqualFold,omitempty"`
 	IdentityFingerprintContainsFold *string  `json:"identityFingerprintContainsFold,omitempty"`
 
+	// "credential_fingerprint" field predicates.
+	CredentialFingerprint             *string  `json:"credentialFingerprint,omitempty"`
+	CredentialFingerprintNEQ          *string  `json:"credentialFingerprintNEQ,omitempty"`
+	CredentialFingerprintIn           []string `json:"credentialFingerprintIn,omitempty"`
+	CredentialFingerprintNotIn        []string `json:"credentialFingerprintNotIn,omitempty"`
+	CredentialFingerprintGT           *string  `json:"credentialFingerprintGT,omitempty"`
+	CredentialFingerprintGTE          *string  `json:"credentialFingerprintGTE,omitempty"`
+	CredentialFingerprintLT           *string  `json:"credentialFingerprintLT,omitempty"`
+	CredentialFingerprintLTE          *string  `json:"credentialFingerprintLTE,omitempty"`
+	CredentialFingerprintContains     *string  `json:"credentialFingerprintContains,omitempty"`
+	CredentialFingerprintHasPrefix    *string  `json:"credentialFingerprintHasPrefix,omitempty"`
+	CredentialFingerprintHasSuffix    *string  `json:"credentialFingerprintHasSuffix,omitempty"`
+	CredentialFingerprintEqualFold    *string  `json:"credentialFingerprintEqualFold,omitempty"`
+	CredentialFingerprintContainsFold *string  `json:"credentialFingerprintContainsFold,omitempty"`
+
 	// "auth_state" field predicates.
 	AuthState      *channelaccount.AuthState  `json:"authState,omitempty"`
 	AuthStateNEQ   *channelaccount.AuthState  `json:"authStateNEQ,omitempty"`
@@ -2136,6 +2151,45 @@ func (i *ChannelAccountWhereInput) P() (predicate.ChannelAccount, error) {
 	}
 	if i.IdentityFingerprintContainsFold != nil {
 		predicates = append(predicates, channelaccount.IdentityFingerprintContainsFold(*i.IdentityFingerprintContainsFold))
+	}
+	if i.CredentialFingerprint != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintEQ(*i.CredentialFingerprint))
+	}
+	if i.CredentialFingerprintNEQ != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintNEQ(*i.CredentialFingerprintNEQ))
+	}
+	if len(i.CredentialFingerprintIn) > 0 {
+		predicates = append(predicates, channelaccount.CredentialFingerprintIn(i.CredentialFingerprintIn...))
+	}
+	if len(i.CredentialFingerprintNotIn) > 0 {
+		predicates = append(predicates, channelaccount.CredentialFingerprintNotIn(i.CredentialFingerprintNotIn...))
+	}
+	if i.CredentialFingerprintGT != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintGT(*i.CredentialFingerprintGT))
+	}
+	if i.CredentialFingerprintGTE != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintGTE(*i.CredentialFingerprintGTE))
+	}
+	if i.CredentialFingerprintLT != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintLT(*i.CredentialFingerprintLT))
+	}
+	if i.CredentialFingerprintLTE != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintLTE(*i.CredentialFingerprintLTE))
+	}
+	if i.CredentialFingerprintContains != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintContains(*i.CredentialFingerprintContains))
+	}
+	if i.CredentialFingerprintHasPrefix != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintHasPrefix(*i.CredentialFingerprintHasPrefix))
+	}
+	if i.CredentialFingerprintHasSuffix != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintHasSuffix(*i.CredentialFingerprintHasSuffix))
+	}
+	if i.CredentialFingerprintEqualFold != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintEqualFold(*i.CredentialFingerprintEqualFold))
+	}
+	if i.CredentialFingerprintContainsFold != nil {
+		predicates = append(predicates, channelaccount.CredentialFingerprintContainsFold(*i.CredentialFingerprintContainsFold))
 	}
 	if i.AuthState != nil {
 		predicates = append(predicates, channelaccount.AuthStateEQ(*i.AuthState))

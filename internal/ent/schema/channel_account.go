@@ -36,13 +36,19 @@ func (ChannelAccount) Mixin() []ent.Mixin {
 
 func (ChannelAccount) Indexes() []ent.Index {
 	return []ent.Index{
-		// An account is identified by its upstream identity within a channel, so
-		// re-authorizing the same account updates the row instead of adding a
-		// duplicate. Rows whose identity is not known yet are kept unique by the
-		// account service, which fills the fingerprint before the row is visible.
-		index.Fields("channel_id", "identity_fingerprint", "deleted_at").
-			StorageKey("channel_accounts_by_channel_identity").
+		// A grant is unique per channel. The credential fingerprint is always
+		// computable, unlike the account identity, which providers only reveal
+		// once a grant has been parsed. Re-importing the same credential
+		// therefore collides, which is what lets the account service update the
+		// grant in place instead of duplicating it.
+		index.Fields("channel_id", "credential_fingerprint", "deleted_at").
+			StorageKey("channel_accounts_by_channel_credential").
 			Unique(),
+		// Locates an existing account by upstream identity when re-authorizing.
+		// Not unique: the fingerprint above already enforces one row per grant,
+		// and identity is optional, so several rows may legitimately lack one.
+		index.Fields("channel_id", "identity", "deleted_at").
+			StorageKey("channel_accounts_by_channel_identity"),
 		index.Fields("channel_id", "deleted_at").
 			StorageKey("channel_accounts_by_channel"),
 		// Account selection scans the enabled accounts of a channel.
@@ -63,12 +69,15 @@ func (ChannelAccount) Fields() []ent.Field {
 		field.String("identity").
 			Optional().
 			Default("").
-			Comment("Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty until the grant is parsed."),
+			Comment("Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty when the provider does not reveal one; the credential fingerprint still identifies the grant."),
 
 		field.String("identity_fingerprint").
 			Optional().
 			Default("").
-			Comment("Stable digest of the identity, used to detect re-authorization of the same account."),
+			Comment("Stable digest of the identity, used to detect re-authorization of the same account. Empty when the identity is unknown."),
+
+		field.String("credential_fingerprint").
+			Comment("Stable digest of the credential itself. Always computable, so it is what makes a grant unique per channel."),
 
 		field.JSON("credentials", map[string]any{}).
 			Sensitive().

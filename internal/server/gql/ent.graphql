@@ -552,13 +552,17 @@ type ChannelAccount implements Node {
   """
   name: String
   """
-  Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty until the grant is parsed.
+  Upstream account identity, e.g. the Google account id or the Anthropic account/organization uuid. Empty when the provider does not reveal one; the credential fingerprint still identifies the grant.
   """
   identity: String
   """
-  Stable digest of the identity, used to detect re-authorization of the same account.
+  Stable digest of the identity, used to detect re-authorization of the same account. Empty when the identity is unknown.
   """
   identityFingerprint: String
+  """
+  Stable digest of the credential itself. Always computable, so it is what makes a grant unique per channel.
+  """
+  credentialFingerprint: String!
   """
   Lifecycle of the grant. Only a ready account serves traffic.
   """
@@ -746,6 +750,22 @@ input ChannelAccountWhereInput {
   identityFingerprintNotNil: Boolean
   identityFingerprintEqualFold: String
   identityFingerprintContainsFold: String
+  """
+  credential_fingerprint field predicates
+  """
+  credentialFingerprint: String
+  credentialFingerprintNEQ: String
+  credentialFingerprintIn: [String!]
+  credentialFingerprintNotIn: [String!]
+  credentialFingerprintGT: String
+  credentialFingerprintGTE: String
+  credentialFingerprintLT: String
+  credentialFingerprintLTE: String
+  credentialFingerprintContains: String
+  credentialFingerprintHasPrefix: String
+  credentialFingerprintHasSuffix: String
+  credentialFingerprintEqualFold: String
+  credentialFingerprintContainsFold: String
   """
   auth_state field predicates
   """
