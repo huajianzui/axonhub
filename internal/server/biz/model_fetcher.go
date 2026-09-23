@@ -229,7 +229,12 @@ func (f *ModelFetcher) getDefaultModelsByType(ctx context.Context, typ channel.T
 // only be returned for official (OAuth) channels. Non-official channels of these
 // types should fetch models from the provider API instead.
 func isOfficialOnlyType(typ channel.Type) bool {
-	return typ == channel.TypeClaudecode || typ == channel.TypeCodex || typ == channel.TypeXaiSubscription
+	return typ == channel.TypeClaudecode ||
+		typ == channel.TypeCodex ||
+		typ == channel.TypeXaiSubscription ||
+		// Antigravity is included so its model list comes from the account rather
+		// than the compiled list, which cannot know the account's plan.
+		typ == channel.TypeAntigravity
 }
 
 // fetchCopilotModels fetches GitHub Copilot models from PublicProviderConf with caching.
@@ -337,8 +342,12 @@ func (f *ModelFetcher) fetchClineRecommendedModels(ctx context.Context, httpClie
 func (f *ModelFetcher) tryReturnDefaultModels(ctx context.Context, channelType string) (*FetchModelsResult, bool) {
 	typ := channel.Type(channelType)
 
-	// Official-only types (claudecode, codex) should not return defaults unconditionally;
-	// they only return defaults when the channel is confirmed as official (OAuth).
+	// Official-only types (claudecode, codex, antigravity, xai) should not return
+	// defaults unconditionally; they only return defaults when the channel is
+	// confirmed as official (OAuth), so the caller can ask the provider first.
+	//
+	// Antigravity belongs here because its compiled list cannot know the
+	// account's plan, which is what makes its model list incomplete.
 	if isOfficialOnlyType(typ) {
 		return nil, false
 	}
