@@ -300,6 +300,18 @@ func (svc *ChannelService) buildCodexOutbound(
 ) (transformer.Outbound, error) {
 	if c.Credentials.IsOAuth() {
 		if ch != nil {
+			// A channel holding accounts selects and refreshes per account.
+			if accountTokens := svc.accountTokenGetter(ch, httpClient); accountTokens != nil {
+				return codex.NewOutboundTransformer(codex.Params{
+					TokenProvider:   accountTokens,
+					BaseURL:         baseURL,
+					Transport:       transport,
+					AlphaSearchPath: alphaSearchPath,
+				})
+			}
+		}
+
+		if ch != nil {
 			if existing, ok := ch.Outbound.(*codex.OutboundTransformer); ok {
 				if tokens := existing.TokenProvider(); tokens != nil {
 					return codex.NewOutboundTransformer(codex.Params{
@@ -825,6 +837,19 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 
 		return ch, nil
 	case channel.TypeXaiSubscription:
+		// A channel holding accounts selects one per request.
+		if accountTokens := svc.accountTokenGetter(ch, httpClient); accountTokens != nil {
+			outbound, err := xaisubscription.NewOutboundTransformer(accountTokens)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create xAI subscription outbound transformer: %w", err)
+			}
+
+			ch.Outbound = outbound
+			svc.setupAccountRefresh(ch, accountTokens)
+
+			return ch, nil
+		}
+
 		credentials, err := c.Credentials.ResolveOAuthCredentials()
 		if err != nil {
 			return nil, fmt.Errorf("xAI subscription channel %s has invalid credentials: %w", c.Name, err)
@@ -887,7 +912,12 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 			// A channel holding accounts selects one per request instead of being
 			// bound to a single grant at build time. With one account this returns
 			// that account, so a migrated channel behaves as it did inline.
-			if accountTokens := NewChannelAccountTokenGetter(ch); accountTokens != nil {
+			if accountTokens := NewChannelAccountTokenGetter(AccountTokenGetterParams{
+				Channel:     ch,
+				HTTPClient:  httpClient,
+				Persister:   svc.accountService,
+				OnRefreshed: nil,
+			}); accountTokens != nil {
 				transformer, err := claudecode.NewOutboundTransformer(claudecode.Params{
 					TokenProvider:   accountTokens,
 					BaseURL:         c.BaseURL,
@@ -899,6 +929,7 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 				}
 
 				ch.Outbound = transformer
+				svc.setupAccountRefresh(ch, accountTokens)
 
 				return ch, nil
 			}

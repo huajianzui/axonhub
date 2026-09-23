@@ -57,8 +57,8 @@ func TestAccountTokenGetter_NilWithoutAccounts(t *testing.T) {
 	)
 
 	// A channel with no accounts must keep the pre-account token provider.
-	require.Nil(t, NewChannelAccountTokenGetter(&Channel{Channel: ch}))
-	require.Nil(t, NewChannelAccountTokenGetter(nil))
+	require.Nil(t, NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: &Channel{Channel: ch}, Persister: newAccountServiceForTest(client)}))
+	require.Nil(t, NewChannelAccountTokenGetter(AccountTokenGetterParams{}))
 }
 
 func TestAccountTokenGetter_SingleAccountIsUnchanged(t *testing.T) {
@@ -70,7 +70,7 @@ func TestAccountTokenGetter_SingleAccountIsUnchanged(t *testing.T) {
 
 	snap := accountTokenChannel(t, ctx, client, account)
 
-	getter := NewChannelAccountTokenGetter(snap)
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)})
 	require.NotNil(t, getter)
 
 	// With one account the credential must be identical to what the inline path
@@ -96,7 +96,7 @@ func TestAccountTokenGetter_DifferentAccountsServeDifferentRequests(t *testing.T
 
 	snap := accountTokenChannel(t, ctx, client, first, second)
 
-	getter := NewChannelAccountTokenGetter(snap)
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)})
 	require.NotNil(t, getter)
 
 	seen := map[string]bool{}
@@ -125,7 +125,7 @@ func TestAccountTokenGetter_IsStickyPerTrace(t *testing.T) {
 	second := createAccount(t, ctx, client, ch.ID, "acct-b", "access-b", 50)
 
 	snap := accountTokenChannel(t, ctx, client, first, second)
-	getter := NewChannelAccountTokenGetter(snap)
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)})
 
 	traceCtx := contexts.WithTrace(ctx, &ent.Trace{ID: 1001})
 
@@ -152,7 +152,7 @@ func TestAccountTokenGetter_StickyAccountSurvivesASetChange(t *testing.T) {
 	second := createAccount(t, ctx, client, ch.ID, "acct-b", "access-b", 50)
 
 	snap := accountTokenChannel(t, ctx, client, first, second)
-	getter := NewChannelAccountTokenGetter(snap)
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)})
 
 	traceCtx := contexts.WithTrace(ctx, &ent.Trace{ID: 1002})
 
@@ -179,7 +179,7 @@ func TestAccountTokenGetter_FallsBackWhenStickyAccountLeaves(t *testing.T) {
 	second := createAccount(t, ctx, client, ch.ID, "acct-b", "access-b", 50)
 
 	snap := accountTokenChannel(t, ctx, client, first, second)
-	getter := NewChannelAccountTokenGetter(snap)
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)})
 
 	traceCtx := contexts.WithTrace(ctx, &ent.Trace{ID: 1003})
 
@@ -216,7 +216,7 @@ func TestAccountTokenGetter_ErrorsWhenAccountHoldsNoGrant(t *testing.T) {
 
 	snap := accountTokenChannel(t, ctx, client, bad)
 
-	_, err := NewChannelAccountTokenGetter(snap).Get(ctx)
+	_, err := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: snap, Persister: newAccountServiceForTest(client)}).Get(ctx)
 	require.Error(t, err, "an account with no oauth grant must be reported, not silently used")
 }
 

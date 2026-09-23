@@ -28,6 +28,7 @@ import (
 	"github.com/looplj/axonhub/internal/server/biz/provider_quota"
 	"github.com/looplj/axonhub/internal/server/scheduler"
 	"github.com/looplj/axonhub/llm/httpclient"
+	"github.com/looplj/axonhub/llm/oauth"
 	"github.com/looplj/axonhub/llm/transformer"
 	xaisubscription "github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
@@ -416,6 +417,39 @@ func (svc *ChannelService) SetEnabledChannelsForTest(channels []*Channel) {
 			return current, lastUpdate, false, nil
 		},
 	})
+}
+
+// accountTokenGetter builds an account-selecting token getter for a channel, or
+// returns nil when the channel has no accounts (or the account service is not
+// wired), so the caller keeps the pre-account single-grant provider.
+func (svc *ChannelService) accountTokenGetter(ch *Channel, httpClient *httpclient.HttpClient) oauth.TokenGetter {
+	if svc.accountService == nil {
+		return nil
+	}
+
+	return NewChannelAccountTokenGetter(AccountTokenGetterParams{
+		Channel:    ch,
+		HTTPClient: httpClient,
+		Persister:  svc.accountService,
+	})
+}
+
+// setupAccountRefresh makes an account-selecting getter start and stop its
+// per-account background refresh alongside the channel cache lifecycle.
+//
+// The getter builds providers lazily, so only accounts that have actually served
+// traffic are refreshed in the background; the in-request refresh path covers
+// the rest.
+func (svc *ChannelService) setupAccountRefresh(ch *Channel, tokens oauth.TokenGetter) {
+	getter, ok := tokens.(*ChannelAccountTokenGetter)
+	if !ok || getter == nil {
+		return
+	}
+
+	ch.startTokenProvider = func() {
+		getter.StartAutoRefresh(context.Background())
+	}
+	ch.stopTokenProvider = getter.StopAutoRefresh
 }
 
 // projectAccountsOntoChannels replaces each channel's inline credential with the

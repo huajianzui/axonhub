@@ -52,6 +52,13 @@ func buildSnapshotsForTest(ctx context.Context, client *ent.Client) []*Channel {
 	return snapshots
 }
 
+// newAccountServiceForTest builds a bare account service over the given client.
+func newAccountServiceForTest(client *ent.Client) *ChannelAccountService {
+	return &ChannelAccountService{
+		AbstractService: &AbstractService{db: client},
+	}
+}
+
 func TestProjectAccountsReplacesInlineCredential(t *testing.T) {
 	t.Parallel()
 

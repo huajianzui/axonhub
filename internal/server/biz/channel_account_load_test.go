@@ -48,7 +48,7 @@ func TestReloadEnabledChannels_PicksHeaviestAccount(t *testing.T) {
 		"cached accounts must be ordered most preferred first")
 
 	// The per-request getter is therefore available on a real loaded channel.
-	getter := NewChannelAccountTokenGetter(loaded[0])
+	getter := NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: loaded[0], Persister: svc.accountService})
 	require.NotNil(t, getter)
 }
 
@@ -102,7 +102,7 @@ func TestReloadEnabledChannels_KeepsInlineCredentialForApiKeyChannels(t *testing
 	require.Len(t, loaded, 1)
 	require.Equal(t, "sk-inline", loaded[0].Credentials.APIKey)
 	require.Empty(t, loaded[0].cachedAccounts)
-	require.Nil(t, NewChannelAccountTokenGetter(loaded[0]),
+	require.Nil(t, NewChannelAccountTokenGetter(AccountTokenGetterParams{Channel: loaded[0], Persister: svc.accountService}),
 		"an api-key channel must keep the pre-account token provider")
 }
 
