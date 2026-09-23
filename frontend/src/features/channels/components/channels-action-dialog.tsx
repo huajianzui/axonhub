@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban, Loader2 } from 'lucide-react';
+import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -1203,10 +1203,12 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
   const renderOAuthSection = useCallback(
     (oauth: ReturnType<typeof useOAuthFlow>, description: string) => {
-      // The callback URL and exchange button stay visible as a fallback: they
-      // are the only path when the provider's fixed port is held by something
-      // else, and a failed auto exchange leaves the captured URL there to retry.
-      const showCallbackField = !oauth.isAutoCaptureAvailable || !oauth.isAwaitingCallback;
+      // The paste field is hidden while capture is running and after it
+      // succeeds. It reappears only when capture is unavailable, failed, or
+      // never finished, so a consumed callback is never shown as if it were
+      // still pending -- which read as "nothing happened".
+      const showCallbackField =
+        !oauth.isAutoCaptureAvailable || (!oauth.isAwaitingCallback && oauth.autoCaptureOutcome !== 'completed');
 
       return (
         <div className='mt-3 space-y-2'>
@@ -1223,7 +1225,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             </div>
 
             {oauth.isAwaitingCallback && (
-              <div className='bg-muted/50 mt-3 flex items-start gap-2 rounded-md p-3'>
+              <div className='bg-muted/50 mt-3 flex items-start gap-2 rounded-md p-3' data-testid='oauth-awaiting-callback'>
                 <Loader2 className={cn('mt-0.5 h-4 w-4 shrink-0', oauth.isAutoCompleting ? 'animate-spin' : 'animate-pulse')} />
                 <div className='space-y-1'>
                   <p className='text-sm font-medium'>
@@ -1235,6 +1237,31 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                     <p className='text-muted-foreground text-xs'>{t('channels.dialogs.oauth.autoCapture.hint')}</p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {oauth.autoCaptureOutcome === 'completed' && (
+              <div
+                className='mt-3 flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3'
+                data-testid='oauth-capture-completed'
+              >
+                <CheckCircle2 className='mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400' />
+                <div className='space-y-1'>
+                  <p className='text-sm font-medium'>{t('channels.dialogs.oauth.autoCapture.completed')}</p>
+                  <p className='text-muted-foreground text-xs'>{t('channels.dialogs.oauth.autoCapture.completedHint')}</p>
+                </div>
+              </div>
+            )}
+
+            {oauth.autoCaptureOutcome === 'failed' && (
+              <div className='mt-3 space-y-1 rounded-md border border-destructive/30 bg-destructive/10 p-3'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-destructive' />
+                  <p className='text-sm'>{t('channels.dialogs.oauth.autoCapture.failedHint')}</p>
+                </div>
+                {oauth.autoCaptureError && (
+                  <p className='text-destructive ml-6 font-mono text-xs break-all'>{oauth.autoCaptureError}</p>
+                )}
               </div>
             )}
 

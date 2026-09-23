@@ -76,6 +76,18 @@ export interface OAuthFlowState {
    */
   isAutoCompleting: boolean;
   /**
+   * How the automatic capture ended. 'completed' means the credential was
+   * imported and this flow is done; 'failed' means the authorization was
+   * received but importing it failed, so the captured URL is left for a manual
+   * retry. Null while no outcome has been reached.
+   */
+  autoCaptureOutcome: 'completed' | 'failed' | null;
+  /**
+   * The failure detail when auto capture failed, kept on screen so the operator
+   * can see why instead of watching a toast disappear.
+   */
+  autoCaptureError: string | null;
+  /**
    * True when AxonHub holds this provider's callback listener. When false the
    * operator must paste the callback URL.
    */
@@ -126,6 +138,8 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
   const [isAwaitingCallback, setIsAwaitingCallback] = useState(false);
   const [isAutoCompleting, setIsAutoCompleting] = useState(false);
   const [isAutoCaptureAvailable, setIsAutoCaptureAvailable] = useState(false);
+  const [autoCaptureOutcome, setAutoCaptureOutcome] = useState<'completed' | 'failed' | null>(null);
+  const [autoCaptureError, setAutoCaptureError] = useState<string | null>(null);
 
   // A paste mid-flight must win over the poller: these refs let the polling
   // closure observe operator input and in-flight exchanges without re-running
@@ -133,6 +147,15 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
   const callbackUrlRef = useRef('');
   callbackUrlRef.current = callbackUrl;
   const exchangeInFlightRef = useRef(false);
+
+  // The callbacks and options below are recreated on every render by callers
+  // (usually inline arrow functions), so they must never appear in the polling
+  // effect's dependencies: doing so tears the effect down and rebuilds it on
+  // every render, which cancels an exchange that just succeeded and leaves the
+  // panel stuck on "importing". They are read through a ref instead, which
+  // always holds the latest value without changing the effect's identity.
+  const latestRef = useRef({ exchangeFn, onSuccess, proxyConfig, t });
+  latestRef.current = { exchangeFn, onSuccess, proxyConfig, t };
 
   // Builds the exchange payload, shared by the manual and captured paths.
   const buildExchangeInput = useCallback(
@@ -253,21 +276,32 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
         setIsAutoCompleting(true);
 
         try {
-          const exchanged = await exchangeFn(buildExchangeInput(result.callback_url, sessionId));
+          const exchanged = await latestRef.current.exchangeFn(
+            buildExchangeInput(result.callback_url, sessionId)
+          );
           if (!cancelled) {
-            onSuccess?.(exchanged.credentials);
-            toast.success(t('channels.dialogs.oauth.messages.autoCaptureCompleted'));
+            latestRef.current.onSuccess?.(exchanged.credentials);
+
+            // Leave a terminal state on screen. Without it the pending banner
+            // simply disappears and the paste field reappears holding the URL
+            // that was already consumed, which reads as "nothing happened" even
+            // though the credential was imported.
+            setAutoCaptureOutcome('completed');
             setIsAwaitingCallback(false);
+            toast.success(latestRef.current.t('channels.dialogs.oauth.autoCapture.completed'));
           }
         } catch (error) {
           if (!cancelled) {
+            const message = error instanceof Error ? error.message : String(error);
+
+            setAutoCaptureOutcome('failed');
+            // Keep the failure visible in the panel, not only in a toast: the
+            // toast disappears and leaves the operator staring at a stalled
+            // "importing" state with no way to tell what went wrong.
+            setAutoCaptureError(message);
             // Leave the captured URL in the field so the operator can retry by
             // hand instead of losing the authorization.
-            toast.error(
-              t('channels.dialogs.oauth.errors.autoCaptureExchangeFailed', {
-                message: error instanceof Error ? error.message : String(error),
-              })
-            );
+            toast.error(latestRef.current.t('channels.dialogs.oauth.errors.autoCaptureExchangeFailed', { message }));
           }
         } finally {
           exchangeInFlightRef.current = false;
@@ -284,14 +318,15 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
       cancelled = true;
       window.clearInterval(timer);
     };
+    // Deliberately excludes exchangeFn, onSuccess, proxyConfig and t: callers
+    // pass inline functions, so depending on them would rebuild this effect on
+    // every render, cancel a successful exchange and leave the panel stuck.
+    // latestRef carries them instead.
   }, [
     callbackProvider,
     isAutoCaptureAvailable,
     sessionId,
     isAwaitingCallback,
-    exchangeFn,
-    onSuccess,
-    t,
     buildExchangeInput,
   ]);
 
@@ -302,6 +337,8 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
       setSessionId(result.session_id);
       setAuthUrl(result.auth_url);
       setCallbackUrl('');
+      setAutoCaptureOutcome(null);
+      setAutoCaptureError(null);
 
       if (callbackProvider && isAutoCaptureAvailable) {
         setIsAwaitingCallback(true);
@@ -322,6 +359,8 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
     setIsExchanging(false);
     setIsAwaitingCallback(false);
     setIsAutoCompleting(false);
+    setAutoCaptureOutcome(null);
+    setAutoCaptureError(null);
   }, []);
 
   return {
@@ -333,6 +372,8 @@ export function useOAuthFlow(options: OAuthFlowOptions): OAuthFlowState & OAuthF
     isAwaitingCallback,
     isAutoCompleting,
     isAutoCaptureAvailable,
+    autoCaptureOutcome,
+    autoCaptureError,
     start,
     exchange,
     setCallbackUrl,
