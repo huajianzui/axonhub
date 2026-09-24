@@ -244,19 +244,46 @@ test('Antigravity draws only the Gemini pool', () => {
   const source = read('components/quota-badges.tsx');
   const block = isolateAntigravityBlock(source);
 
-  // Only this channel's actual capacity is drawn; the other pool is deliberately
-  // left out of the panel.
-  assert.match(block, /limit\.group === ANTIGRAVITY_QUOTA_GROUP/, 'limits should be narrowed to the Gemini pool');
-  assert.match(source, /const ANTIGRAVITY_QUOTA_GROUP = 'Gemini'/, 'the pool constant should name Gemini');
-  // Upstream could rename the pool; the panel must still show the data it has
-  // rather than rendering nothing while limits exist.
-  assert.match(block, /geminiLimits\.length > 0 \? geminiLimits : limits/, 'an unmatched pool should fall back to all limits');
+  // The panel narrows to the displayed pool through the shared helper, so the
+  // table and the panel cannot drift apart.
+  assert.match(block, /selectAntigravityDisplayLimits\(limits\)/, 'the panel should use the shared pool helper');
   assert.match(block, /quota\.limits\.filter\(\(limit\) => limit\.type === 'token'\)/);
   assert.match(block, /WINDOW_LABEL_KEYS\[limit\.window\]/, 'windows should resolve through the shared label map');
   assert.match(block, /formatTimeToReset\(limit\.nextResetAt\)/);
+  // No inline pool rule may return: it would duplicate the shared helper.
+  assert.doesNotMatch(block, /limit\.group === /, 'the panel must not re-implement pool selection');
 });
 
-// Hiding the second pool from the panel must not hide it from the quota system:
+// The shared helper owns the fallback so both render points inherit it.
+test('the pool helper narrows to Gemini and falls back when unmatched', async () => {
+  const source = read('features/system/data/antigravity-quota-display.ts');
+  // Keep the export keywords so the named bindings are importable here.
+  const output = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+  }).outputText;
+  const { selectAntigravityDisplayLimits, ANTIGRAVITY_QUOTA_GROUP } = await import(
+    `data:text/javascript;base64,${Buffer.from(output).toString('base64')}`
+  );
+
+  assert.equal(ANTIGRAVITY_QUOTA_GROUP, 'Gemini');
+
+  const bothPools = [
+    { group: 'Gemini', window: '5h' },
+    { group: 'Gemini', window: '7d' },
+    { group: 'Claude/GPT', window: '5h' },
+    { group: 'Claude/GPT', window: '7d' },
+  ];
+  assert.deepEqual(
+    selectAntigravityDisplayLimits(bothPools).map((limit) => `${limit.group}|${limit.window}`),
+    ['Gemini|5h', 'Gemini|7d']
+  );
+
+  // Ungrouped limits are the pre-existing shape and must pass through untouched.
+  const ungrouped = [{ window: '5h' }, { window: '7d' }];
+  assert.equal(selectAntigravityDisplayLimits(ungrouped).length, 2, 'ungrouped limits should not be dropped');
+});
+
+// Hiding the second pool from the panels must not hide it from the quota system:
 // the percentage badge and the routing alerts read every limit on the channel.
 test('Antigravity keeps every pool on the data path, not just the drawn one', () => {
   const source = read('components/quota-badges.tsx');
@@ -270,7 +297,7 @@ test('Antigravity keeps every pool on the data path, not just the drawn one', ()
     'the badge must consider every pool, not only the one the panel draws'
   );
   // The panel narrowing lives in the render branch only.
-  assert.doesNotMatch(source.slice(start, end), /ANTIGRAVITY_QUOTA_GROUP/);
+  assert.doesNotMatch(source.slice(start, end), /selectAntigravityDisplayLimits/);
 });
 
 test('Antigravity badge percentage follows the busiest window', () => {

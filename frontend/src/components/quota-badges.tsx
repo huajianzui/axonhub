@@ -36,13 +36,9 @@ import {
 import { useGeneralSettings, useQuotaRoutingSettings, type QuotaRoutingMode } from '@/features/system/data/system';
 import type { ChannelQuotaRoutingMode } from '@/features/channels/data/schema';
 import { capitalizeZenmuxTier, getZenmuxMonthlyQuotaUSD, getZenmuxUsagePercentage } from '@/features/system/data/zenmux-quota-display';
+import { selectAntigravityDisplayLimits } from '@/features/system/data/antigravity-quota-display';
 
 const syntheticWeeklyRegenTickPct = 0.02;
-
-// Antigravity reports its limits per capacity pool. Only this pool's windows are
-// drawn; the Claude/GPT pool stays on the channel so the percentage badge and
-// quota alerts still account for it.
-const ANTIGRAVITY_QUOTA_GROUP = 'Gemini';
 
 const BADGE_COLOR_CLASSES: Record<string, string> = {
   green: 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
@@ -1016,10 +1012,7 @@ function QuotaRow({ channel, effectiveMode }: { channel: ProviderQuotaChannel; e
             // actually used for. The backend still keeps the Claude/GPT pool on the
             // channel, so the percentage badge and quota alerts below keep tracking
             // it even though no bar is rendered for it.
-            const geminiLimits = limits.filter((limit) => limit.group === ANTIGRAVITY_QUOTA_GROUP);
-            // Falling back to every limit keeps the panel usable if upstream ever
-            // renames the pool, rather than showing nothing while data exists.
-            const shownLimits = geminiLimits.length > 0 ? geminiLimits : limits;
+            const shownLimits = selectAntigravityDisplayLimits(limits);
 
             return shownLimits.map((limit) => {
               const labelKey = limit.window ? WINDOW_LABEL_KEYS[limit.window] : undefined;

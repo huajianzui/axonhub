@@ -14,6 +14,17 @@ const helpers = ast.statements
 const { outputText } = ts.transpileModule(helpers, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
 });
+
+// Load the real display helper the table calls rather than stubbing it, so the
+// tests exercise the same pool selection the UI performs.
+const antigravitySource = readFileSync(
+  new URL('../../system/data/antigravity-quota-display.ts', import.meta.url),
+  'utf8'
+);
+const antigravityOutput = ts.transpileModule(antigravitySource.replace(/^export (?=(const|function))/gm, ''), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+}).outputText;
+
 const parserStub = `
 const QUOTA_WINDOW_LABEL_KEYS = {
   '5h': '5h', '7d': '7d', '30d': '30d', daily: 'daily', weekly: 'weekly', monthly: 'monthly', cycle: 'cycle', overage: 'overage'
@@ -28,7 +39,7 @@ function parseQuotaLimits(quotaData) {
 }
 `;
 const { getQuotaLimits, quotaWindowLabel } = await import(
-  `data:text/javascript;base64,${Buffer.from(`${parserStub}\n${outputText}`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`${parserStub}\n${antigravityOutput}\n${outputText}`).toString('base64')}`
 );
 const t = (key) => key;
 
@@ -92,4 +103,62 @@ test('other provider window labels are preserved', () => {
   assert.deepEqual(getQuotaLimits(channel).map((limit) => quotaWindowLabel(limit.window, t)), ['5h', '7d']);
   assert.equal(quotaWindowLabel('weekly', t), 'weekly');
   assert.equal(quotaWindowLabel('monthly', t), 'monthly');
+});
+
+// Antigravity reports the same 5h and weekly windows for two capacity pools. The
+// table listed all four, which read as a duplicated "5h, 7d, 5h, 7d".
+test('Antigravity table rows show the Gemini pool once', () => {
+  const channel = {
+    type: 'antigravity',
+    providerQuotaStatus: {
+      status: 'available',
+      quotaData: {
+        _limits: [
+          { type: 'token', status: 'available', ready: true, group: 'Claude/GPT', window: '5h', usageRatio: 0 },
+          { type: 'token', status: 'available', ready: true, group: 'Claude/GPT', window: '7d', usageRatio: 0 },
+          { type: 'token', status: 'available', ready: true, group: 'Gemini', window: '5h', usageRatio: 0.25 },
+          { type: 'token', status: 'available', ready: true, group: 'Gemini', window: '7d', usageRatio: 0.9 },
+        ],
+      },
+    },
+  };
+
+  const limits = getQuotaLimits(channel);
+
+  assert.equal(limits.length, 2, 'only the Gemini pool should reach the table');
+  assert.deepEqual(limits.map((limit) => quotaWindowLabel(limit.window, t)), ['5h', '7d']);
+  assert.deepEqual(limits.map((limit) => limit.group), ['Gemini', 'Gemini']);
+  // The drawn rows must be the Gemini numbers, not the untouched Claude/GPT ones.
+  assert.deepEqual(limits.map((limit) => limit.usageRatio), [0.25, 0.9]);
+});
+
+test('Antigravity table falls back to every pool when none is named Gemini', () => {
+  const channel = {
+    type: 'antigravity',
+    providerQuotaStatus: {
+      status: 'available',
+      quotaData: {
+        _limits: [{ type: 'token', status: 'available', ready: true, group: 'Renamed', window: '5h', usageRatio: 0.3 }],
+      },
+    },
+  };
+
+  assert.equal(getQuotaLimits(channel).length, 1, 'a renamed pool should still render instead of blanking the row');
+});
+
+test('other channels are not narrowed by the Antigravity pool rule', () => {
+  const channel = {
+    type: 'opencode_go',
+    providerQuotaStatus: {
+      status: 'available',
+      quotaData: {
+        _limits: [
+          { type: 'token', status: 'available', ready: true, group: 'Gemini', window: '5h', usageRatio: 0.1 },
+          { type: 'token', status: 'available', ready: true, group: 'Other', window: '7d', usageRatio: 0.2 },
+        ],
+      },
+    },
+  };
+
+  assert.equal(getQuotaLimits(channel).length, 2, 'the pool rule must apply to Antigravity only');
 });

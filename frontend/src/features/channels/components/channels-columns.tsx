@@ -48,6 +48,7 @@ import { useTestChannel, useUpdateChannel } from '../data/channels';
 import { CHANNEL_CONFIGS, getProvider } from '../data/config_channels';
 import { Channel } from '../data/schema';
 import { parseQuotaLimits } from '../../system/data/quotas';
+import { selectAntigravityDisplayLimits } from '../../system/data/antigravity-quota-display';
 import type { QuotaRoutingMode } from '../../system/data/system';
 import { getChannelQuotaRoutingIndicator } from '../utils/quota-routing-status';
 import { ChannelHealthCell } from './channel-health-cell';
@@ -75,7 +76,15 @@ const QUOTA_WINDOW_LABEL_KEYS: Record<string, string> = {
 };
 
 function getQuotaLimits(channel: Channel) {
-  return channel.providerQuotaStatus ? parseQuotaLimits(channel.providerQuotaStatus.quotaData) : [];
+  if (!channel.providerQuotaStatus) return [];
+
+  const limits = parseQuotaLimits(channel.providerQuotaStatus.quotaData);
+  if (limits.length === 0) return limits;
+
+  // Antigravity publishes one set of windows per capacity pool and only the
+  // Gemini pool is displayed. The filter lives here rather than in the cell
+  // because the cell must stay provider-neutral.
+  return channel.type === 'antigravity' ? selectAntigravityDisplayLimits(limits) : limits;
 }
 
 function quotaWindowLabel(window: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
