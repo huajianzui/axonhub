@@ -15,6 +15,7 @@ import (
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/oauth"
 	"github.com/looplj/axonhub/llm/transformer/antigravity"
+	xaisubscription "github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
 
 // This file discovers a subscription channel's models from the provider itself,
@@ -211,6 +212,113 @@ func antigravityAccessToken(ctx context.Context, ch *ent.Channel, httpClient *ht
 	return refreshed.AccessToken, projectID, nil
 }
 
+// xaiModelsURLSuffix is appended to the channel's base URL to list models.
+const xaiModelsURLSuffix = "/models"
+
+// fetchXaiUpstreamModels asks the provider which models this channel's account
+// may use.
+//
+// The platform endpoint answers this for the account's own token, so it reflects
+// the account's plan and rollout state. The compiled list named the newest model
+// by hand, which is why it drifted: upstream had retired a model the list still
+// advertised and introduced one the list had never heard of.
+func (f *ModelFetcher) fetchXaiUpstreamModels(ctx context.Context, ch *ent.Channel) ([]ModelIdentify, error) {
+	httpClient := f.httpClientForChannel(ch)
+
+	accessToken, err := xaiAccessToken(ctx, ch, httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	request := httpclient.NewRequestBuilder().
+		WithMethod(http.MethodGet).
+		WithURL(strings.TrimRight(ch.BaseURL, "/")+xaiModelsURLSuffix).
+		WithBearerToken(accessToken).
+		// The subscription proxy identifies callers by these headers; without them
+		// the request is not recognised as coming from the CLI.
+		WithHeader(xaisubscription.CLITokenAuthHeader, xaisubscription.CLITokenAuth).
+		WithHeader(xaisubscription.CLIClientVersionHeader, xaisubscription.CLIClientVersion).
+		WithHeader(xaisubscription.CLIClientIdentifierHeader, xaisubscription.CLIClientIdentifier).
+		WithHeader("User-Agent", xaisubscription.CLIUserAgent).
+		Build()
+
+	response, err := httpClient.Do(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch xAI models: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch xAI models: upstream status %d", response.StatusCode)
+	}
+
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(response.Body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode xAI models response: %w", err)
+	}
+
+	models := make([]ModelIdentify, 0, len(parsed.Data))
+	for _, model := range parsed.Data {
+		if strings.TrimSpace(model.ID) == "" {
+			continue
+		}
+
+		models = append(models, ModelIdentify{ID: model.ID})
+	}
+
+	if len(models) == 0 {
+		return nil, fmt.Errorf("xAI account exposes no models")
+	}
+
+	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+
+	return models, nil
+}
+
+// xaiAccessToken resolves a usable access token for the channel, refreshing when
+// the stored one has expired.
+func xaiAccessToken(ctx context.Context, ch *ent.Channel, httpClient *httpclient.HttpClient) (string, error) {
+	// ResolveOAuthCredentials handles both credential layouts: an OAuth object and
+	// the JSON grant stored in the api_key field, which is what xAI channels use.
+	credentials, err := ch.Credentials.ResolveOAuthCredentials()
+	if err != nil {
+		return "", fmt.Errorf("xAI channel %s has invalid credentials: %w", ch.Name, err)
+	}
+
+	if credentials.AccessToken != "" && !credentials.IsExpired(time.Now()) {
+		return credentials.AccessToken, nil
+	}
+
+	if credentials.RefreshToken == "" {
+		return "", fmt.Errorf("xai channel %s has no usable credential", ch.Name)
+	}
+
+	refreshing := *credentials
+	if refreshing.ClientID == "" {
+		refreshing.ClientID = xaisubscription.ClientID
+	}
+
+	if len(refreshing.Scopes) == 0 {
+		refreshing.Scopes = strings.Fields(xaisubscription.Scopes)
+	}
+
+	tokenProvider := xaisubscription.NewTokenProvider(xaisubscription.TokenProviderParams{
+		Credentials: &refreshing,
+		HTTPClient:  httpClient,
+	})
+
+	refreshed, err := tokenProvider.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("refresh xAI token for channel %s: %w", ch.Name, err)
+	}
+
+	return refreshed.AccessToken, nil
+}
+
 // discoverOrFallbackModels asks upstream for the model list and falls back to
 // the compiled list when upstream cannot be reached.
 //
@@ -221,7 +329,18 @@ func (f *ModelFetcher) discoverOrFallbackModels(
 	ch *ent.Channel,
 	fallback []ModelIdentify,
 ) []ModelIdentify {
-	discovered, err := f.fetchAntigravityUpstreamModels(ctx, ch)
+	var (
+		discovered []ModelIdentify
+		err        error
+	)
+
+	switch ch.Type {
+	case channel.TypeXaiSubscription:
+		discovered, err = f.fetchXaiUpstreamModels(ctx, ch)
+	default:
+		discovered, err = f.fetchAntigravityUpstreamModels(ctx, ch)
+	}
+
 	if err != nil {
 		log.Warn(ctx, "falling back to the compiled model list",
 			log.String("channel", ch.Name),
@@ -244,5 +363,5 @@ func (f *ModelFetcher) discoverOrFallbackModels(
 // supportsUpstreamModelDiscovery reports whether the fetcher can ask this
 // channel's provider for its model list.
 func supportsUpstreamModelDiscovery(typ channel.Type) bool {
-	return typ == channel.TypeAntigravity
+	return typ == channel.TypeAntigravity || typ == channel.TypeXaiSubscription
 }

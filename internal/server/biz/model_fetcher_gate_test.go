@@ -28,6 +28,18 @@ func TestTryReturnDefaultModels_SkipsAntigravity(t *testing.T) {
 		"antigravity must not be answered from the compiled list, or upstream discovery is unreachable")
 }
 
+// Same gate for xAI: it now has a discovery path, so the compiled-list short
+// circuit must not answer first and hide it.
+func TestTryReturnDefaultModels_SkipsXaiSubscription(t *testing.T) {
+	t.Parallel()
+
+	fetcher := &ModelFetcher{}
+
+	_, ok := fetcher.tryReturnDefaultModels(t.Context(), channel.TypeXaiSubscription.String())
+	require.False(t, ok,
+		"xai_subscription must not be answered from the compiled list, or upstream discovery is unreachable")
+}
+
 // TestIsOfficialOnlyType_GatesEveryTypeWithADiscoveryPath records which types are
 // deliberately kept out of the compiled-list short circuit.
 //

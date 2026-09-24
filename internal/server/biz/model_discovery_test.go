@@ -59,3 +59,12 @@ func TestSupportsUpstreamModelDiscovery_CoversAntigravity(t *testing.T) {
 	require.False(t, supportsUpstreamModelDiscovery("codex"))
 	require.False(t, supportsUpstreamModelDiscovery("openai"))
 }
+
+// xAI subscription was on the compiled-only path, which is why its list drifted:
+// the compiled entries named the newest model by hand and were not revised when
+// upstream retired one and introduced another.
+func TestSupportsUpstreamModelDiscovery_CoversXaiSubscription(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, supportsUpstreamModelDiscovery("xai_subscription"))
+}
