@@ -240,15 +240,37 @@ function isolateAntigravityBlock(source) {
   return source.slice(start, end);
 }
 
-test('Antigravity renders one section per capacity pool', () => {
-  const block = isolateAntigravityBlock(read('components/quota-badges.tsx'));
+test('Antigravity draws only the Gemini pool', () => {
+  const source = read('components/quota-badges.tsx');
+  const block = isolateAntigravityBlock(source);
 
-  assert.match(block, /limit\.group/, 'pools must be distinguished by the limit group');
+  // Only this channel's actual capacity is drawn; the other pool is deliberately
+  // left out of the panel.
+  assert.match(block, /limit\.group === ANTIGRAVITY_QUOTA_GROUP/, 'limits should be narrowed to the Gemini pool');
+  assert.match(source, /const ANTIGRAVITY_QUOTA_GROUP = 'Gemini'/, 'the pool constant should name Gemini');
+  // Upstream could rename the pool; the panel must still show the data it has
+  // rather than rendering nothing while limits exist.
+  assert.match(block, /geminiLimits\.length > 0 \? geminiLimits : limits/, 'an unmatched pool should fall back to all limits');
   assert.match(block, /quota\.limits\.filter\(\(limit\) => limit\.type === 'token'\)/);
   assert.match(block, /WINDOW_LABEL_KEYS\[limit\.window\]/, 'windows should resolve through the shared label map');
   assert.match(block, /formatTimeToReset\(limit\.nextResetAt\)/);
-  // Without grouping the two pools would both draw a "5h" and a "7d" row.
-  assert.match(block, /groups\.find\(\(group\) => group\.name === limit\.group\)/);
+});
+
+// Hiding the second pool from the panel must not hide it from the quota system:
+// the percentage badge and the routing alerts read every limit on the channel.
+test('Antigravity keeps every pool on the data path, not just the drawn one', () => {
+  const source = read('components/quota-badges.tsx');
+  const start = source.indexOf("} else if (channel.type === 'antigravity') {");
+  const end = source.indexOf('} else if (', start + 5);
+
+  assert.ok(start !== -1, 'Antigravity badge percentage branch should exist');
+  assert.match(
+    source.slice(start, end),
+    /channel\.quotaStatus\.limits\.map\(\(limit\) => limit\.usageRatio \* 100\)/,
+    'the badge must consider every pool, not only the one the panel draws'
+  );
+  // The panel narrowing lives in the render branch only.
+  assert.doesNotMatch(source.slice(start, end), /ANTIGRAVITY_QUOTA_GROUP/);
 });
 
 test('Antigravity badge percentage follows the busiest window', () => {

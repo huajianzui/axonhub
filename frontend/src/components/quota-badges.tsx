@@ -39,6 +39,11 @@ import { capitalizeZenmuxTier, getZenmuxMonthlyQuotaUSD, getZenmuxUsagePercentag
 
 const syntheticWeeklyRegenTickPct = 0.02;
 
+// Antigravity reports its limits per capacity pool. Only this pool's windows are
+// drawn; the Claude/GPT pool stays on the channel so the percentage badge and
+// quota alerts still account for it.
+const ANTIGRAVITY_QUOTA_GROUP = 'Gemini';
+
 const BADGE_COLOR_CLASSES: Record<string, string> = {
   green: 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
   red: 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20',
@@ -1007,56 +1012,48 @@ function QuotaRow({ channel, effectiveMode }: { channel: ProviderQuotaChannel; e
               );
             }
 
-            // Each capacity pool publishes the same windows, so the pools are
-            // grouped instead of rendering one identical row per window.
-            const groups: Array<{ name?: string; limits: ProviderQuotaLimit[] }> = [];
-            limits.forEach((limit) => {
-              const existing = groups.find((group) => group.name === limit.group);
-              if (existing) existing.limits.push(limit);
-              else groups.push({ name: limit.group, limits: [limit] });
-            });
+            // Only the Gemini pool is drawn: that is the capacity this channel is
+            // actually used for. The backend still keeps the Claude/GPT pool on the
+            // channel, so the percentage badge and quota alerts below keep tracking
+            // it even though no bar is rendered for it.
+            const geminiLimits = limits.filter((limit) => limit.group === ANTIGRAVITY_QUOTA_GROUP);
+            // Falling back to every limit keeps the panel usable if upstream ever
+            // renames the pool, rather than showing nothing while data exists.
+            const shownLimits = geminiLimits.length > 0 ? geminiLimits : limits;
 
-            return groups.map((group, groupIndex) => (
-              <div
-                key={group.name ?? groupIndex}
-                className={groupIndex > 0 ? 'border-border/60 space-y-2.5 border-t border-dashed pt-3' : 'space-y-2.5'}
-              >
-                {group.name && <div className='text-muted-foreground text-xs font-medium'>{group.name}</div>}
-                {group.limits.map((limit) => {
-                  const labelKey = limit.window ? WINDOW_LABEL_KEYS[limit.window] : undefined;
-                  const label = labelKey ? t(labelKey) : limit.window || t('quota.label.token_usage');
-                  const usedPercent = limit.status === 'exhausted' ? 100 : limit.usageRatio * 100;
-                  const durationPercent = getLimitDurationPercent(limit);
+            return shownLimits.map((limit) => {
+              const labelKey = limit.window ? WINDOW_LABEL_KEYS[limit.window] : undefined;
+              const label = labelKey ? t(labelKey) : limit.window || t('quota.label.token_usage');
+              const usedPercent = limit.status === 'exhausted' ? 100 : limit.usageRatio * 100;
+              const durationPercent = getLimitDurationPercent(limit);
 
-                  return (
-                    <div key={`${limit.group ?? ''}-${limit.window}`} className='space-y-1'>
-                      <div className='flex items-center justify-between text-xs'>
-                        <span className='text-muted-foreground font-medium'>{label}</span>
-                        <span className='text-foreground font-medium'>
-                          {t('quota.label.percent_used', { percent: Math.round(usedPercent) })}
-                        </span>
-                      </div>
-                      <UsageTimeBar
-                        usagePercent={usedPercent}
-                        durationPercent={durationPercent}
-                        tooltip={
-                          <div className='space-y-0.5'>
-                            <div className='font-medium'>{group.name ? `${group.name} · ${label}` : label}</div>
-                            <div>{t('quota.label.percent_used', { percent: Math.round(usedPercent) })}</div>
-                            {durationPercent !== undefined && (
-                              <div>
-                                {t('quota.label.time_elapsed')}: {Math.round(durationPercent)}%
-                              </div>
-                            )}
-                            {limit.nextResetAt && <div>{formatTimeToReset(limit.nextResetAt)}</div>}
+              return (
+                <div key={`${limit.group ?? ''}-${limit.window}`} className='space-y-1'>
+                  <div className='flex items-center justify-between text-xs'>
+                    <span className='text-muted-foreground font-medium'>{label}</span>
+                    <span className='text-foreground font-medium'>
+                      {t('quota.label.percent_used', { percent: Math.round(usedPercent) })}
+                    </span>
+                  </div>
+                  <UsageTimeBar
+                    usagePercent={usedPercent}
+                    durationPercent={durationPercent}
+                    tooltip={
+                      <div className='space-y-0.5'>
+                        <div className='font-medium'>{limit.group ? `${limit.group} · ${label}` : label}</div>
+                        <div>{t('quota.label.percent_used', { percent: Math.round(usedPercent) })}</div>
+                        {durationPercent !== undefined && (
+                          <div>
+                            {t('quota.label.time_elapsed')}: {Math.round(durationPercent)}%
                           </div>
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            ));
+                        )}
+                        {limit.nextResetAt && <div>{formatTimeToReset(limit.nextResetAt)}</div>}
+                      </div>
+                    }
+                  />
+                </div>
+              );
+            });
           })()}
         </div>
       )}
