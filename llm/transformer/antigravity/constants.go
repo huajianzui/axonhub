@@ -62,6 +62,12 @@ var (
 )
 
 // DefaultModels returns the default models for Antigravity.
+//
+// This is the compiled fallback used when the account's own model list cannot
+// be fetched, and it is merged into the live list when it can. It therefore
+// carries every variant operators are known to use, not just the ones a single
+// account happens to report: an account reports what its plan exposes, while
+// these are the names the service accepts.
 func DefaultModels() []string {
 	return []string{
 		"claude-sonnet-4-5",
@@ -74,6 +80,10 @@ func DefaultModels() []string {
 		"gemini-3-pro-medium",
 		"gemini-3-flash",
 		"gemini-3-pro-image",
+		"gemini-3.8-flash-high",
+		"gemini-3.8-flash-medium",
+		"gemini-3.8-flash-low",
+		"gemini-3.8-flash-tiered",
 		"gpt-oss-120b-medium",
 	}
 }

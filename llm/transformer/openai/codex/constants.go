@@ -4,6 +4,10 @@ package codex
 //
 // The ChatGPT Codex backend does not provide a stable public /models endpoint.
 // CLIProxyAPI keeps a local registry; we mirror that approach to power AxonHub "Fetch Models".
+//
+// The image entries matter: the Codex channel already registers the image
+// generation and edit endpoints, so omitting these model IDs leaves that
+// capability unreachable from the console even though it works.
 func DefaultModels() []string {
 	return []string{
 		"gpt-5",
@@ -24,6 +28,10 @@ func DefaultModels() []string {
 		"gpt-5.6-terra",
 		"gpt-5.6-luna",
 		"gpt-6-astra",
+		// Codex-side helpers and image generation.
+		"codex-auto-review",
+		"gpt-image-2",
+		"gpt-image-2.5",
 	}
 }
 
