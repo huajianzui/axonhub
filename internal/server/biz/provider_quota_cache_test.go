@@ -9,6 +9,7 @@ import (
 	"github.com/looplj/axonhub/internal/server/biz/provider_quota"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProviderQuotaService_GetQuotaStatus_ReturnsCorrectData(t *testing.T) {
@@ -249,5 +250,32 @@ func TestMergeAndExtractLimitsRoundTrip(t *testing.T) {
 		merged := svc.mergeLimitsIntoQuotaData(quotaData)
 		assert.Equal(t, "data", merged["existing"])
 		assert.NotNil(t, merged["_limits"])
+	})
+
+	// Providers that publish the same window for several pools rely on the group
+	// surviving the round trip; dropping it would merge distinct limits.
+	t.Run("round trips the limit group", func(t *testing.T) {
+		quotaData := provider_quota.QuotaData{
+			Status:       "available",
+			ProviderType: "antigravity",
+			Limits: []provider_quota.QuotaLimitStatus{
+				{
+					Type: provider_quota.QuotaLimitTypeToken, Status: "available",
+					UsageRatio: 0.3, Ready: true, Window: provider_quota.QuotaWindow5h, Group: "Gemini",
+				},
+				{
+					Type: provider_quota.QuotaLimitTypeToken, Status: "available",
+					UsageRatio: 0.4, Ready: true, Window: provider_quota.QuotaWindow5h, Group: "Claude/GPT",
+				},
+			},
+		}
+
+		merged := svc.mergeLimitsIntoQuotaData(quotaData)
+		extracted := extractLimitsFromQuotaData(merged)
+
+		require.Len(t, extracted, 2)
+		assert.Equal(t, "Gemini", extracted[0].Group)
+		assert.Equal(t, "Claude/GPT", extracted[1].Group)
+		assert.Equal(t, provider_quota.QuotaWindow5h, extracted[0].Window)
 	})
 }

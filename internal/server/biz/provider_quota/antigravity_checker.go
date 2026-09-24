@@ -50,6 +50,19 @@ func (c *AntigravityQuotaChecker) CheckQuota(ctx context.Context, ch *ent.Channe
 		return QuotaData{}, err
 	}
 
+	// Prefer the quota summary, which reports real rate-limit windows. The model
+	// list endpoint reports only a per-model remaining fraction with no time
+	// dimension, which rendered as one row per model instead of the time windows
+	// every other channel shows.
+	summary, err := c.fetchAntigravityQuotaSummary(ctx, httpClient, accessToken, projectID)
+	if err == nil {
+		if quota, parseErr := parseAntigravityQuotaSummary(summary); parseErr == nil {
+			return quota, nil
+		}
+	}
+
+	// Fall back to the model list so the channel still reports something when the
+	// summary endpoint is unavailable.
 	body := map[string]any{}
 	if projectID != "" {
 		body["project"] = projectID

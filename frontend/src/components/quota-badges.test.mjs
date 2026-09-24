@@ -224,3 +224,52 @@ test('mode badge labels are locale-complete and legacy enforcement keys are gone
     assert.deepEqual(legacy, [], `${name}/system.json still has legacy quota status keys`);
   }
 });
+
+// --- Antigravity windowed quota ---
+
+// Antigravity publishes the same 5h/weekly windows for several capacity pools,
+// so the render branch must keep the pools apart instead of drawing one
+// indistinguishable row per window.
+function isolateAntigravityBlock(source) {
+  const start = source.indexOf("{channel.type === 'antigravity' &&");
+  const end = source.indexOf("{channel.type === 'cline' &&", start);
+
+  assert.ok(start !== -1, 'Antigravity render branch should exist in quota-badges source');
+  assert.ok(end !== -1 && end > start, 'Cline render branch should follow the Antigravity branch');
+
+  return source.slice(start, end);
+}
+
+test('Antigravity renders one section per capacity pool', () => {
+  const block = isolateAntigravityBlock(read('components/quota-badges.tsx'));
+
+  assert.match(block, /limit\.group/, 'pools must be distinguished by the limit group');
+  assert.match(block, /quota\.limits\.filter\(\(limit\) => limit\.type === 'token'\)/);
+  assert.match(block, /WINDOW_LABEL_KEYS\[limit\.window\]/, 'windows should resolve through the shared label map');
+  assert.match(block, /formatTimeToReset\(limit\.nextResetAt\)/);
+  // Without grouping the two pools would both draw a "5h" and a "7d" row.
+  assert.match(block, /groups\.find\(\(group\) => group\.name === limit\.group\)/);
+});
+
+test('Antigravity badge percentage follows the busiest window', () => {
+  const source = read('components/quota-badges.tsx');
+  const start = source.indexOf("} else if (channel.type === 'antigravity') {");
+  const end = source.indexOf('} else if (', start + 5);
+
+  assert.ok(start !== -1, 'Antigravity badge percentage branch should exist');
+  assert.match(
+    source.slice(start, end),
+    /Math\.max\(0, \.\.\.channel\.quotaStatus\.limits\.map\(\(limit\) => limit\.usageRatio \* 100\)\)/
+  );
+});
+
+test('quota limit groups survive the console parser and the channel union', () => {
+  const quotas = read('features/system/data/quotas.ts');
+
+  assert.match(quotas, /group\?: string;/, 'the limit type should carry the pool');
+  assert.match(quotas, /const group = optionalString\(limit\.group\)/, 'the parser should read the pool');
+  assert.match(quotas, /group,\s*\n\s*nextResetAt,/, 'the parser should return the pool');
+  // The channel union is discriminated on type; an unlisted antigravity member
+  // makes every channel.type === 'antigravity' comparison a type error.
+  assert.match(quotas, /type: 'antigravity';/, 'antigravity needs a channel union member');
+});

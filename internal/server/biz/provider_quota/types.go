@@ -78,6 +78,12 @@ type QuotaLimitStatus struct {
 	// QuotaLimitType, so this is what tells them apart in the UI.
 	Window string `json:"window,omitempty"`
 
+	// Group names the capacity pool a limit belongs to when one provider
+	// publishes the same window for several pools. Antigravity, for example,
+	// reports a 5h and a weekly window for Gemini and again for Claude/GPT;
+	// without this the two pools would be indistinguishable.
+	Group string `json:"group,omitempty"`
+
 	// PeriodStart is the beginning of the window UsageRatio covers. Checkers
 	// fill it whenever the window length is known (either reported by the
 	// provider or fixed by the plan); it is what makes the usage-log cost

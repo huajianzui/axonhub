@@ -203,6 +203,10 @@ function getChannelPercentage(channel: ProviderQuotaChannel): number {
     percentage = maxPercent;
   } else if (channel.type === 'opencode_go' || channel.type === 'opencode_go_anthropic') {
     percentage = Math.max(0, ...channel.quotaStatus.limits.map((limit) => limit.usageRatio * 100));
+  } else if (channel.type === 'antigravity') {
+    // Every pool shares the same two windows, so the busiest one represents the
+    // channel.
+    percentage = Math.max(0, ...channel.quotaStatus.limits.map((limit) => limit.usageRatio * 100));
   } else if (isOllamaType(channel.type)) {
     const qd = channel.quotaStatus.quotaData as ProviderOllamaQuotaData | undefined;
     percentage = Math.max(
@@ -989,6 +993,70 @@ function QuotaRow({ channel, effectiveMode }: { channel: ProviderQuotaChannel; e
                 ) : null}
               </>
             );
+          })()}
+        </div>
+      )}
+
+      {channel.type === 'antigravity' && (
+        <div className='mt-3 space-y-3'>
+          {(() => {
+            const limits = quota.limits.filter((limit) => limit.type === 'token');
+            if (limits.length === 0) {
+              return (
+                <div className='bg-muted/40 text-muted-foreground rounded p-2 text-[11px]'>{t('quota.label.unavailable')}</div>
+              );
+            }
+
+            // Each capacity pool publishes the same windows, so the pools are
+            // grouped instead of rendering one identical row per window.
+            const groups: Array<{ name?: string; limits: ProviderQuotaLimit[] }> = [];
+            limits.forEach((limit) => {
+              const existing = groups.find((group) => group.name === limit.group);
+              if (existing) existing.limits.push(limit);
+              else groups.push({ name: limit.group, limits: [limit] });
+            });
+
+            return groups.map((group, groupIndex) => (
+              <div
+                key={group.name ?? groupIndex}
+                className={groupIndex > 0 ? 'border-border/60 space-y-2.5 border-t border-dashed pt-3' : 'space-y-2.5'}
+              >
+                {group.name && <div className='text-muted-foreground text-xs font-medium'>{group.name}</div>}
+                {group.limits.map((limit) => {
+                  const labelKey = limit.window ? WINDOW_LABEL_KEYS[limit.window] : undefined;
+                  const label = labelKey ? t(labelKey) : limit.window || t('quota.label.token_usage');
+                  const usedPercent = limit.status === 'exhausted' ? 100 : limit.usageRatio * 100;
+                  const durationPercent = getLimitDurationPercent(limit);
+
+                  return (
+                    <div key={`${limit.group ?? ''}-${limit.window}`} className='space-y-1'>
+                      <div className='flex items-center justify-between text-xs'>
+                        <span className='text-muted-foreground font-medium'>{label}</span>
+                        <span className='text-foreground font-medium'>
+                          {t('quota.label.percent_used', { percent: Math.round(usedPercent) })}
+                        </span>
+                      </div>
+                      <UsageTimeBar
+                        usagePercent={usedPercent}
+                        durationPercent={durationPercent}
+                        tooltip={
+                          <div className='space-y-0.5'>
+                            <div className='font-medium'>{group.name ? `${group.name} · ${label}` : label}</div>
+                            <div>{t('quota.label.percent_used', { percent: Math.round(usedPercent) })}</div>
+                            {durationPercent !== undefined && (
+                              <div>
+                                {t('quota.label.time_elapsed')}: {Math.round(durationPercent)}%
+                              </div>
+                            )}
+                            {limit.nextResetAt && <div>{formatTimeToReset(limit.nextResetAt)}</div>}
+                          </div>
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ));
           })()}
         </div>
       )}

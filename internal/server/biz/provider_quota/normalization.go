@@ -96,7 +96,9 @@ func normalizeQuotaLimits(limits []QuotaLimitStatus, now time.Time) []QuotaLimit
 			limit.PeriodStart = nil
 		}
 
-		identity := string(limit.Type) + "\x00" + limit.Window
+		// A provider that reports the same window for several capacity pools
+		// needs the pool in the identity, or the pools would be merged.
+		identity := string(limit.Type) + "\x00" + limit.Window + "\x00" + limit.Group
 		if index, ok := indexes[identity]; ok {
 			mergeQuotaLimit(&normalized[index], limit)
 			continue

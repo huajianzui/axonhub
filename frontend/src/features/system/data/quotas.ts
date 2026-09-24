@@ -484,6 +484,12 @@ export type ProviderQuotaLimit = {
   usageRatio: number;
   ready: boolean;
   window?: string;
+  /**
+   * Capacity pool a limit belongs to, for providers that publish the same
+   * window for several pools (Antigravity reports one 5h and one weekly window
+   * for Gemini, and again for Claude/GPT).
+   */
+  group?: string;
   nextResetAt?: string;
   periodStart?: string;
   periodCost?: number;
@@ -535,12 +541,15 @@ function parseQuotaLimit(entry: unknown): ProviderQuotaLimit | undefined {
   const periodQuota = optionalNumber(limit.periodQuota);
   if (limit.periodQuota !== undefined && periodQuota === undefined) return undefined;
 
+  const group = optionalString(limit.group);
+
   return {
     type,
     status: limit.status,
     usageRatio,
     ready: limit.ready === true,
     window,
+    group,
     nextResetAt,
     periodStart,
     periodCost,
@@ -775,6 +784,14 @@ export type ProviderQuotaChannel = {
       type: 'ollama' | 'ollama_anthropic';
       quotaStatus: {
         quotaData: ProviderOllamaQuotaData;
+      };
+    }
+  | {
+      // Antigravity publishes its rate limits as normalized windows held in
+      // `_limits`, so it needs no provider-specific quotaData shape.
+      type: 'antigravity';
+      quotaStatus: {
+        quotaData: ProviderQuotaDataCommon;
       };
     }
 );

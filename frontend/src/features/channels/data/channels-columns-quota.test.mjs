@@ -260,6 +260,59 @@ test('hidden quota selection keeps routing status fields for the channel name', 
   assert.match(hiddenQuery, /liveLimiterStats/);
 });
 
+// Antigravity captured from a live channel: the same 5h and weekly windows are
+// published for two capacity pools, so the parser has to keep both rather than
+// collapsing them into two ambiguous rows.
+const ANTIGRAVITY_QUOTA_DATA = {
+  _limits: [
+    { group: 'Claude/GPT', nextResetAt: '2026-09-24T11:05:00Z', ready: true, status: 'available', type: 'token', usageRatio: 0, window: '5h' },
+    { group: 'Claude/GPT', nextResetAt: '2026-10-01T06:05:00Z', ready: true, status: 'available', type: 'token', usageRatio: 0, window: '7d' },
+    { group: 'Gemini', nextResetAt: '2026-09-24T11:05:00Z', ready: true, status: 'available', type: 'token', usageRatio: 0, window: '5h' },
+    {
+      group: 'Gemini',
+      nextResetAt: '2026-09-30T07:50:22Z',
+      ready: true,
+      status: 'available',
+      type: 'token',
+      usageRatio: 0.000024259999999998172,
+      window: '7d',
+    },
+  ],
+};
+
+test('Antigravity limits keep both capacity pools and both windows', () => {
+  const limits = parseQuotaLimits(ANTIGRAVITY_QUOTA_DATA);
+
+  assert.equal(limits.length, 4, 'both pools publish a 5h and a weekly window');
+  assert.deepEqual(
+    limits.map((limit) => `${limit.group}|${limit.window}`),
+    ['Claude/GPT|5h', 'Claude/GPT|7d', 'Gemini|5h', 'Gemini|7d']
+  );
+
+  // Without the pool on each limit the render branch cannot tell the rows apart.
+  assert.ok(
+    limits.every((limit) => typeof limit.group === 'string' && limit.group !== ''),
+    'every limit must carry its pool'
+  );
+});
+
+test('Antigravity quota reaches the channel schema with its pools intact', () => {
+  const parsed = channelSchema.safeParse(
+    channelFixture({
+      type: 'antigravity',
+      providerQuotaStatus: {
+        status: 'available',
+        ready: true,
+        providerType: 'antigravity',
+        quotaData: ANTIGRAVITY_QUOTA_DATA,
+      },
+    })
+  );
+
+  assert.ok(parsed.success, `channel schema should accept antigravity: ${parsed.success ? '' : parsed.error}`);
+  assert.equal(parseQuotaLimits(parsed.data.providerQuotaStatus.quotaData).length, 4);
+});
+
 test('more than five normalized limits expose the remaining rows for expansion', () => {
   const limits = parseQuotaLimits({
     _limits: [
