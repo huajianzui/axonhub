@@ -37,7 +37,18 @@ func quotaCheckerFixture(checker string) (QuotaData, error) {
 			"rate_limit":{"primary_window":{"used_percent":25,"limit_window_seconds":18000,"reset_at":4102444800},"secondary_window":{"used_percent":50,"limit_window_seconds":604800,"reset_at":4103049600}}
 		}`))
 	case "antigravity":
-		return parseAntigravityQuota([]byte(`{"models":{"gemini":{"quotaInfo":{"remainingFraction":0.75,"resetTime":"2099-01-01T00:00:00Z"}},"claude":{"quotaInfo":{"remainingFraction":0.5,"resetTime":"2099-01-02T00:00:00Z"}}}}`))
+		// Antigravity quota comes from the summary endpoint. The model list is not
+		// a quota source: it reports a per-model remaining fraction with no time
+		// dimension, so it cannot describe the 5h/weekly windows.
+		return parseAntigravityQuotaSummary(&antigravityQuotaSummary{
+			Groups: []antigravityQuotaGroup{{
+				DisplayName: "Gemini Models",
+				Buckets: []antigravityQuotaBucket{
+					{BucketID: "gemini-5h", Window: "5h", RemainingFraction: ptrFloat(0.75), ResetTime: "2099-01-01T00:00:00Z"},
+					{BucketID: "gemini-weekly", Window: "weekly", RemainingFraction: ptrFloat(0.5), ResetTime: "2099-01-08T00:00:00Z"},
+				},
+			}},
+		})
 	case "xai_subscription":
 		summary, err := subscription.ParseBillingResponses(
 			[]byte(`{"config":{"currentPeriod":{"end":"2099-01-01T00:00:00Z"},"creditUsagePercent":25}}`),
@@ -138,4 +149,8 @@ func normalizedLimitIdentities(quota QuotaData) []string {
 		identities = append(identities, string(limit.Type)+"/"+limit.Window)
 	}
 	return identities
+}
+
+func ptrFloat(value float64) *float64 {
+	return &value
 }

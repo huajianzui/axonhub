@@ -1003,8 +1003,15 @@ function QuotaRow({ channel, effectiveMode }: { channel: ProviderQuotaChannel; e
           {(() => {
             const limits = quota.limits.filter((limit) => limit.type === 'token');
             if (limits.length === 0) {
+              // No windows means the summary was not available. Saying so is what
+              // distinguishes an upstream refusal from an AxonHub regression —
+              // and the per-model list is deliberately not shown here, because it
+              // is a different quantity with no time dimension.
               return (
-                <div className='bg-muted/40 text-muted-foreground rounded p-2 text-[11px]'>{t('quota.label.unavailable')}</div>
+                <div className='bg-muted/40 text-muted-foreground rounded p-2 text-[11px]'>
+                  <div className='font-medium'>{t('quota.label.quota_unavailable')}</div>
+                  <div className='mt-0.5'>{t('quota.label.quota_unavailable_hint')}</div>
+                </div>
               );
             }
 

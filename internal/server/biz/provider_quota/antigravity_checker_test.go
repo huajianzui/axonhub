@@ -85,32 +85,28 @@ func TestAntigravityQuotaChecker_CheckQuota(t *testing.T) {
 
 // When the summary endpoint is unavailable the checker must still report
 // something, so it falls back to the model list.
-func TestAntigravityQuotaChecker_FallsBackToModelList(t *testing.T) {
+// A refused summary must not be replaced by the model list. That list has no
+// time dimension, so serving it as quota swapped the Gemini 5h/7d rows for one
+// row per model, and an upstream refusal became indistinguishable from a change
+// in AxonHub. Failing instead is what lets the console report the real reason.
+func TestAntigravityQuotaChecker_FailsWhenTheSummaryIsRefused(t *testing.T) {
+	var requested []string
+
 	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.String() {
-		case antigravityQuotaSummaryURL:
-			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(`{}`)),
-			}, nil
-		case antigravityQuotaURL:
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     make(http.Header),
-				Body: io.NopCloser(strings.NewReader(`{
-					"models": {"gemini":{"quotaInfo":{"remainingFraction":0.5}}}
-				}`)),
-			}, nil
-		default:
-			t.Fatalf("unexpected request: %s", request.URL.String())
-			return nil, nil
-		}
+		requested = append(requested, request.URL.String())
+
+		return &http.Response{
+			StatusCode: http.StatusForbidden,
+			Status:     "403 Forbidden",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(antigravityRefusalBody)),
+		}, nil
 	})})
 
 	checker := NewAntigravityQuotaChecker(httpClient)
 
-	quota, err := checker.CheckQuota(t.Context(), &ent.Channel{
+	_, err := checker.CheckQuota(t.Context(), &ent.Channel{
+		Name: "Antigravity",
 		Type: channel.TypeAntigravity,
 		Credentials: objects.ChannelCredentials{
 			APIKey: "refresh-token|project-id",
@@ -121,9 +117,11 @@ func TestAntigravityQuotaChecker_FallsBackToModelList(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, "antigravity", quota.ProviderType)
-	require.Len(t, quota.RawData["models"], 1)
+	require.Error(t, err)
+	// The quota source is the only endpoint touched; the model list is not a
+	// fallback for quota.
+	require.Equal(t, []string{antigravityQuotaSummaryURL}, requested)
+	require.Contains(t, err.Error(), "VALIDATION_REQUIRED")
 }
 
 func TestAntigravityQuotaChecker_CheckQuotaRefreshesLegacyCredentials(t *testing.T) {

@@ -201,31 +201,24 @@ func TestAntigravitySummaryReason_FallsBackToTheBody(t *testing.T) {
 	require.Equal(t, "plain text failure", antigravitySummaryReason([]byte("plain text failure")))
 }
 
-// A refused summary must be reported, not swallowed. The checker falls back to
-// the model list so the channel still reports something, and this is what makes
-// that fallback visible.
-func TestAntigravityChecker_ReportsWhyTheSummaryFellBack(t *testing.T) {
+// A refused summary is reported rather than swallowed by a fallback, so the
+// console can say the quota is unavailable instead of showing a different
+// quantity. The reason has to survive, because it is the difference between
+// "AxonHub broke" and "the account needs verifying".
+func TestAntigravityChecker_ReportsWhyTheSummaryFailed(t *testing.T) {
 	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.String() == antigravityQuotaSummaryURL {
-			return &http.Response{
-				StatusCode: http.StatusForbidden,
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(antigravityRefusalBody)),
-			}, nil
-		}
-
 		return &http.Response{
-			StatusCode: http.StatusOK,
+			StatusCode: http.StatusForbidden,
+			Status:     "403 Forbidden",
 			Header:     make(http.Header),
-			Body: io.NopCloser(strings.NewReader(`{
-				"models": {"gemini-2.5-pro": {"displayName":"Gemini 2.5 Pro","quotaInfo":{"remainingFraction":0.5}}}
-			}`)),
+			Body:       io.NopCloser(strings.NewReader(antigravityRefusalBody)),
 		}, nil
 	})})
 
 	checker := NewAntigravityQuotaChecker(httpClient)
 
-	quota, err := checker.CheckQuota(t.Context(), &ent.Channel{
+	_, err := checker.CheckQuota(t.Context(), &ent.Channel{
+		Name: "Antigravity",
 		Type: channel.TypeAntigravity,
 		Credentials: objects.ChannelCredentials{
 			APIKey: "refresh-token|project-id",
@@ -236,17 +229,9 @@ func TestAntigravityChecker_ReportsWhyTheSummaryFellBack(t *testing.T) {
 		},
 	})
 
-	// The fallback still produces data, so the console keeps working.
-	require.NoError(t, err)
-	require.NotEmpty(t, quota.RawData["models"], "the model list fallback should still report")
-
-	// And the reason is available to the log rather than being discarded. The
-	// transport error does not carry the status code, so the reason is what
-	// identifies the refusal.
-	_, summaryErr := checker.fetchAntigravityQuotaSummary(t.Context(), httpClient, "access-token", "project-id")
-	require.Error(t, summaryErr)
-	require.Contains(t, summaryErr.Error(), "VALIDATION_REQUIRED")
-	require.Contains(t, summaryErr.Error(), "Verify your account")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "VALIDATION_REQUIRED")
+	require.Contains(t, err.Error(), "Verify your account")
 }
 
 // A provider that does not report groups must keep merging duplicate windows, so

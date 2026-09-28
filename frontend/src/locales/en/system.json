@@ -371,6 +371,8 @@
   "quota.label.regenerating_now": "Regenerating now",
   "quota.label.no_usage_yet": "No usage yet",
   "quota.label.unavailable": "N/A",
+  "quota.label.quota_unavailable": "Quota unavailable",
+  "quota.label.quota_unavailable_hint": "The provider refused the quota request. Open the channel's quota panel for the reason.",
   "quota.label.days": " days",
   "quota.label.day": " day",
   "quota.label.hours": " hours",

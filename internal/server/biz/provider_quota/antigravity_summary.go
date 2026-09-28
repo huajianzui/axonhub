@@ -81,11 +81,11 @@ func (c *AntigravityQuotaChecker) fetchAntigravityQuotaSummary(
 
 	response, err := httpClient.Do(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("fetch Antigravity quota summary: %w%s", err, antigravitySummaryRefusal(err))
+		return nil, antigravitySummaryTransportError(err)
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch Antigravity quota summary: upstream status %d: %s", response.StatusCode, antigravitySummaryReason(response.Body))
+		return nil, antigravitySummaryStatusError(response.StatusCode, response.Body)
 	}
 
 	parsed, err := decodeAntigravityQuotaSummary(response.Body)
@@ -94,6 +94,35 @@ func (c *AntigravityQuotaChecker) fetchAntigravityQuotaSummary(
 	}
 
 	return parsed, nil
+}
+
+// antigravitySummaryTransportError classifies a transport failure, including the
+// upstream reason carried in the response body when there is one.
+func antigravitySummaryTransportError(err error) error {
+	reason := antigravitySummaryRefusal(err)
+
+	var httpErr *httpclient.Error
+	if errors.As(err, &httpErr) &&
+		(httpErr.StatusCode == http.StatusUnauthorized || httpErr.StatusCode == http.StatusForbidden) {
+		return fmt.Errorf("%w: %w%s", ErrInvalidCredentials, err, reason)
+	}
+
+	return fmt.Errorf("fetch Antigravity quota summary: %w%s", err, reason)
+}
+
+// antigravitySummaryStatusError classifies a non-2xx summary response.
+//
+// A 401/403 is an account-level refusal, so it is marked as invalid credentials:
+// that makes the framework drop stale quota instead of retaining it behind a
+// failure backoff, matching how the other checkers classify their auth errors.
+func antigravitySummaryStatusError(statusCode int, body []byte) error {
+	reason := antigravitySummaryReason(body)
+
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: Antigravity quota summary returned %d (%s)", ErrInvalidCredentials, statusCode, reason)
+	}
+
+	return fmt.Errorf("Antigravity quota summary returned %d (%s)", statusCode, reason)
 }
 
 // decodeAntigravityQuotaSummary validates a raw summary body. It is separate from

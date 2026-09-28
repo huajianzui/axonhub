@@ -2,12 +2,7 @@ package provider_quota
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"math"
-	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,18 +14,13 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/antigravity"
 )
 
+// antigravityQuotaURL lists an Antigravity account's models together with a
+// per-model remaining fraction.
+//
+// It serves model discovery only. Its quotaInfo carries no time dimension, so it
+// cannot describe the account's rate-limit windows, and reporting it as quota
+// produced one row per model.
 const antigravityQuotaURL = antigravity.EndpointProd + "/v1internal:fetchAvailableModels"
-
-type antigravityQuotaResponse struct {
-	Models map[string]struct {
-		DisplayName string `json:"displayName"`
-		IsInternal  bool   `json:"isInternal"`
-		QuotaInfo   *struct {
-			RemainingFraction *float64 `json:"remainingFraction"`
-			ResetTime         any      `json:"resetTime"`
-		} `json:"quotaInfo"`
-	} `json:"models"`
-}
 
 type AntigravityQuotaChecker struct {
 	httpClient *httpclient.HttpClient
@@ -51,52 +41,30 @@ func (c *AntigravityQuotaChecker) CheckQuota(ctx context.Context, ch *ent.Channe
 		return QuotaData{}, err
 	}
 
-	// Prefer the quota summary, which reports real rate-limit windows. The model
-	// list endpoint reports only a per-model remaining fraction with no time
-	// dimension, which rendered as one row per model instead of the time windows
-	// every other channel shows.
-	summary, summaryErr := c.fetchAntigravityQuotaSummary(ctx, httpClient, accessToken, projectID)
-	if summaryErr == nil {
-		if quota, parseErr := parseAntigravityQuotaSummary(summary); parseErr == nil {
-			return quota, nil
-		} else {
-			summaryErr = parseErr
-		}
+	// The summary is the only endpoint that reports this account's rate-limit
+	// windows, so it must not be backed by the model list. That list carries a
+	// per-model remaining fraction with no time dimension: reporting it as quota
+	// swaps the Gemini 5h/7d rows for one row per model, which makes an upstream
+	// refusal look like a change in AxonHub.
+	//
+	// Failing instead leaves the console reporting that the quota is unavailable
+	// and why, which is the honest answer while the upstream refuses the call.
+	summary, err := c.fetchAntigravityQuotaSummary(ctx, httpClient, accessToken, projectID)
+	if err != nil {
+		return QuotaData{}, err
 	}
 
-	// The summary is the only source of window data, so when it fails the console
-	// silently shows per-model rows instead and nothing explains why. Report the
-	// reason: the usual cause is upstream refusing the call until the account is
-	// verified, which the account owner has to resolve.
-	log.Warn(ctx, "Antigravity quota summary unavailable, falling back to the model list",
+	quota, err := parseAntigravityQuotaSummary(summary)
+	if err != nil {
+		return QuotaData{}, err
+	}
+
+	log.Debug(ctx, "reported Antigravity quota windows",
 		log.String("channel", ch.Name),
-		log.Cause(summaryErr),
+		log.Int("windows", len(quota.Limits)),
 	)
 
-	// Fall back to the model list so the channel still reports something when the
-	// summary endpoint is unavailable.
-	body := map[string]any{}
-	if projectID != "" {
-		body["project"] = projectID
-	}
-
-	request := httpclient.NewRequestBuilder().
-		WithMethod(http.MethodPost).
-		WithURL(antigravityQuotaURL).
-		WithBearerToken(accessToken).
-		WithHeader("Content-Type", "application/json").
-		WithHeader("User-Agent", antigravity.GetUserAgent()).
-		WithHeader("X-Client-Name", "antigravity").
-		WithHeader("X-Client-Version", antigravity.GetVersion()).
-		WithBody(body).
-		Build()
-
-	response, err := httpClient.Do(ctx, request)
-	if err != nil {
-		return QuotaData{}, fmt.Errorf("fetch Antigravity quota: %w", err)
-	}
-
-	return parseAntigravityQuota(response.Body)
+	return quota, nil
 }
 
 func (c *AntigravityQuotaChecker) SupportsChannel(ch *ent.Channel) bool {
@@ -152,70 +120,8 @@ func (c *AntigravityQuotaChecker) credentials(
 	return refreshed.AccessToken, projectID, nil
 }
 
-func parseAntigravityQuota(body []byte) (QuotaData, error) {
-	var response antigravityQuotaResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return QuotaData{}, fmt.Errorf("decode Antigravity quota response: %w", err)
-	}
-	if len(response.Models) == 0 {
-		return QuotaData{}, fmt.Errorf("Antigravity quota response has no models")
-	}
-
-	models := make(map[string]any, len(response.Models))
-	limits := make([]QuotaLimitStatus, 0, len(response.Models))
-	maxRemaining := 0.0
-	var nextResetAt *time.Time
-
-	modelIDs := make([]string, 0, len(response.Models))
-	for modelID := range response.Models {
-		modelIDs = append(modelIDs, modelID)
-	}
-	sort.Strings(modelIDs)
-	for _, modelID := range modelIDs {
-		model := response.Models[modelID]
-		if model.IsInternal || model.QuotaInfo == nil || model.QuotaInfo.RemainingFraction == nil {
-			continue
-		}
-		if math.IsNaN(*model.QuotaInfo.RemainingFraction) || math.IsInf(*model.QuotaInfo.RemainingFraction, 0) || *model.QuotaInfo.RemainingFraction < 0 {
-			continue
-		}
-
-		remaining := max(0, min(1, *model.QuotaInfo.RemainingFraction))
-		usageRatio := 1 - remaining
-		status := antigravityQuotaStatus(usageRatio)
-		resetAt := parseAntigravityResetTime(model.QuotaInfo.ResetTime)
-		if resetAt != nil && (nextResetAt == nil || resetAt.Before(*nextResetAt)) {
-			nextResetAt = resetAt
-		}
-		maxRemaining = max(maxRemaining, remaining)
-
-		modelData := map[string]any{
-			"displayName":         model.DisplayName,
-			"remainingPercentage": remaining * 100,
-			"status":              status,
-		}
-		if resetAt != nil {
-			modelData["resetAt"] = resetAt.Format(time.RFC3339)
-		}
-		models[modelID] = modelData
-		limits = append(limits, NewTokenLimitStatus(status, usageRatio, resetAt).WithWindow(modelID, 0))
-	}
-
-	if len(models) == 0 {
-		return QuotaData{}, fmt.Errorf("Antigravity quota response has no quota data")
-	}
-	overallStatus := antigravityQuotaStatus(1 - maxRemaining)
-
-	return NormalizeQuotaData(QuotaData{
-		Status:       overallStatus,
-		ProviderType: "antigravity",
-		RawData:      map[string]any{"models": models},
-		NextResetAt:  nextResetAt,
-		Ready:        IsReadyStatus(overallStatus),
-		Limits:       limits,
-	}), nil
-}
-
+// antigravityQuotaStatus classifies a usage ratio the same way every other
+// provider does, so Antigravity limits map onto the shared thresholds.
 func antigravityQuotaStatus(usageRatio float64) string {
 	if usageRatio >= 1 {
 		return "exhausted"
@@ -223,31 +129,6 @@ func antigravityQuotaStatus(usageRatio float64) string {
 	if usageRatio >= WarningThresholdRatio {
 		return "warning"
 	}
-	return "available"
-}
 
-func parseAntigravityResetTime(value any) *time.Time {
-	var parsed time.Time
-	switch value := value.(type) {
-	case string:
-		if timestamp, err := strconv.ParseInt(value, 10, 64); err == nil {
-			parsed = time.Unix(timestamp, 0)
-			if timestamp >= 1_000_000_000_000 {
-				parsed = time.UnixMilli(timestamp)
-			}
-		} else {
-			parsed, err = time.Parse(time.RFC3339, value)
-			if err != nil {
-				return nil
-			}
-		}
-	case float64:
-		parsed = time.Unix(int64(value), 0)
-		if value >= 1_000_000_000_000 {
-			parsed = time.UnixMilli(int64(value))
-		}
-	default:
-		return nil
-	}
-	return &parsed
+	return "available"
 }

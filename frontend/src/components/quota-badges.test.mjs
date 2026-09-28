@@ -254,6 +254,23 @@ test('Antigravity draws only the Gemini pool', () => {
   assert.doesNotMatch(block, /limit\.group === /, 'the panel must not re-implement pool selection');
 });
 
+// When the summary is refused there are no windows. Showing the per-model list
+// instead made an upstream refusal look like an AxonHub regression, so the panel
+// must say the quota is unavailable and point at the reason.
+test('Antigravity says the quota is unavailable rather than showing model rows', () => {
+  const block = isolateAntigravityBlock(read('components/quota-badges.tsx'));
+
+  assert.match(block, /t\('quota\.label\.quota_unavailable'\)/, 'the panel should name the unavailable state');
+  assert.match(block, /t\('quota\.label\.quota_unavailable_hint'\)/, 'the panel should point at the reason');
+  assert.doesNotMatch(block, /rawData|\.models\b/, 'the model list is not a quota source and must not be rendered');
+
+  for (const locale of ['en', 'zh-CN']) {
+    const system = JSON.parse(read(`locales/${locale}/system.json`));
+    assert.ok(system['quota.label.quota_unavailable'], `${locale} is missing quota.label.quota_unavailable`);
+    assert.ok(system['quota.label.quota_unavailable_hint'], `${locale} is missing the hint`);
+  }
+});
+
 // The shared helper owns the fallback so both render points inherit it.
 test('the pool helper narrows to Gemini and falls back when unmatched', async () => {
   const source = read('features/system/data/antigravity-quota-display.ts');

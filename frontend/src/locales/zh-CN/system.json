@@ -370,6 +370,8 @@
   "quota.label.regenerating_now": "正在再生",
   "quota.label.no_usage_yet": "尚无使用量",
   "quota.label.unavailable": "N/A",
+  "quota.label.quota_unavailable": "配额不可用",
+  "quota.label.quota_unavailable_hint": "上游拒绝了配额请求。打开该渠道的配额面板可查看具体原因。",
   "quota.label.days": "天",
   "quota.label.day": "天",
   "quota.label.hours": "小时",

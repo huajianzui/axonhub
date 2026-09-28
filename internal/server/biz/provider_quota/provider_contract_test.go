@@ -15,25 +15,37 @@ import (
 	"github.com/looplj/axonhub/llm/httpclient"
 )
 
+// Antigravity's model-list endpoint reports a per-model remaining fraction with no
+// time dimension, so it is not a quota source. This pins that the checker reports
+// the account's windows from the summary endpoint and that the fixtures used to
+// verify the shared contract come from the same place the checker does.
 func TestQuotaCheckers_NormalizeReportedLimits(t *testing.T) {
-	// Given a successful Antigravity response with two model quota limits.
-	body := []byte(`{
-		"models": {
-			"gemini-3-pro": {"displayName":"Gemini 3 Pro","quotaInfo":{"remainingFraction":0.75,"resetTime":"2099-09-04T08:00:00Z"}},
-			"claude-sonnet": {"displayName":"Claude Sonnet","quotaInfo":{"remainingFraction":0.1,"resetTime":"2099-09-04T08:00:00Z"}}
-		}
-	}`)
+	// Given a successful Antigravity summary with two windows.
+	summary := &antigravityQuotaSummary{
+		Groups: []antigravityQuotaGroup{{
+			DisplayName: "Gemini Models",
+			Buckets: []antigravityQuotaBucket{
+				{BucketID: "gemini-5h", Window: "5h", RemainingFraction: ptrFloat(0.75), ResetTime: "2099-09-04T08:00:00Z"},
+				{BucketID: "gemini-weekly", Window: "weekly", RemainingFraction: ptrFloat(0.9), ResetTime: "2099-09-04T08:00:00Z"},
+			},
+		}},
+	}
 
 	// When the checker parses the provider response.
-	quota, err := parseAntigravityQuota(body)
+	quota, err := parseAntigravityQuotaSummary(summary)
 
-	// Then every provider-reported model limit is available in normalized data.
+	// Then every reported window is available in normalized data.
 	require.NoError(t, err)
 	require.Len(t, quota.Limits, 2)
-	require.Equal(t, "claude-sonnet", quota.Limits[0].Window)
-	require.Equal(t, "gemini-3-pro", quota.Limits[1].Window)
-	require.InDelta(t, 0.9, quota.Limits[0].UsageRatio, 1e-9)
-	require.InDelta(t, 0.25, quota.Limits[1].UsageRatio, 1e-9)
+
+	windows := map[string]QuotaLimitStatus{}
+	for _, limit := range quota.Limits {
+		windows[limit.Window] = limit
+	}
+
+	require.InDelta(t, 0.25, windows[QuotaWindow5h].UsageRatio, 1e-9)
+	require.InDelta(t, 0.1, windows[QuotaWindow7d].UsageRatio, 1e-9)
+	require.Equal(t, "Gemini", windows[QuotaWindow5h].Group)
 	assertNormalizedLimitContract(t, quota)
 }
 
