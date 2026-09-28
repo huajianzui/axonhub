@@ -3,6 +3,7 @@ package provider_quota
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -80,11 +81,11 @@ func (c *AntigravityQuotaChecker) fetchAntigravityQuotaSummary(
 
 	response, err := httpClient.Do(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("fetch Antigravity quota summary: %w", err)
+		return nil, fmt.Errorf("fetch Antigravity quota summary: %w%s", err, antigravitySummaryRefusal(err))
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch Antigravity quota summary: upstream status %d", response.StatusCode)
+		return nil, fmt.Errorf("fetch Antigravity quota summary: upstream status %d: %s", response.StatusCode, antigravitySummaryReason(response.Body))
 	}
 
 	parsed, err := decodeAntigravityQuotaSummary(response.Body)
@@ -309,6 +310,55 @@ func quotaPeriodLabel(seconds int64) string {
 	default:
 		return fmt.Sprintf("%ds", seconds)
 	}
+}
+
+// antigravitySummaryRefusal extracts the upstream reason from the response body
+// carried by a transport error, so the log explains a refusal instead of only
+// naming the status code.
+//
+// Google answers 403 with VALIDATION_REQUIRED and a message like "Verify your
+// account to continue." when the account owner still has to complete verification.
+// The status alone is not enough to tell that apart from a genuine outage, and
+// without it the only trace is a silent fallback to a different endpoint.
+func antigravitySummaryRefusal(err error) string {
+	var httpErr *httpclient.Error
+	if !errors.As(err, &httpErr) || len(httpErr.Body) == 0 {
+		return ""
+	}
+
+	if reason := antigravitySummaryReason(httpErr.Body); reason != "" {
+		return ": " + reason
+	}
+
+	return ""
+}
+
+// antigravitySummaryReason extracts the upstream reason from an error body.
+func antigravitySummaryReason(body []byte) string {
+	var parsed struct {
+		Error struct {
+			Message string `json:"message"`
+			Details []struct {
+				Reason string `json:"reason"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return strings.TrimSpace(string(body))
+	}
+
+	reason := strings.TrimSpace(parsed.Error.Message)
+
+	for _, detail := range parsed.Error.Details {
+		if strings.TrimSpace(detail.Reason) != "" {
+			reason = strings.TrimSpace(detail.Reason) + ": " + reason
+
+			break
+		}
+	}
+
+	return reason
 }
 
 func antigravityQuotaSummaryResetAt(raw string) *time.Time {

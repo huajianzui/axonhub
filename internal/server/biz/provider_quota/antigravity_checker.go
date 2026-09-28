@@ -13,6 +13,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/oauth"
 	"github.com/looplj/axonhub/llm/transformer/antigravity"
@@ -54,12 +55,23 @@ func (c *AntigravityQuotaChecker) CheckQuota(ctx context.Context, ch *ent.Channe
 	// list endpoint reports only a per-model remaining fraction with no time
 	// dimension, which rendered as one row per model instead of the time windows
 	// every other channel shows.
-	summary, err := c.fetchAntigravityQuotaSummary(ctx, httpClient, accessToken, projectID)
-	if err == nil {
+	summary, summaryErr := c.fetchAntigravityQuotaSummary(ctx, httpClient, accessToken, projectID)
+	if summaryErr == nil {
 		if quota, parseErr := parseAntigravityQuotaSummary(summary); parseErr == nil {
 			return quota, nil
+		} else {
+			summaryErr = parseErr
 		}
 	}
+
+	// The summary is the only source of window data, so when it fails the console
+	// silently shows per-model rows instead and nothing explains why. Report the
+	// reason: the usual cause is upstream refusing the call until the account is
+	// verified, which the account owner has to resolve.
+	log.Warn(ctx, "Antigravity quota summary unavailable, falling back to the model list",
+		log.String("channel", ch.Name),
+		log.Cause(summaryErr),
+	)
 
 	// Fall back to the model list so the channel still reports something when the
 	// summary endpoint is unavailable.

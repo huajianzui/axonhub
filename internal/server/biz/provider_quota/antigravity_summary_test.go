@@ -1,10 +1,18 @@
 package provider_quota
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/objects"
+	"github.com/looplj/axonhub/llm/httpclient"
 )
 
 // antigravitySummaryBody is the response captured from a live
@@ -157,6 +165,88 @@ func TestAntigravityQuotaWindow(t *testing.T) {
 			require.Equal(t, tc.want, antigravityQuotaWindow(tc.window, tc.bucketID))
 		})
 	}
+}
+
+// antigravityRefusalBody is the payload Google returns when the account has not
+// been verified. The summary endpoint is the only source of window data, so this
+// refusal is what makes the console fall back to per-model rows; the reason has
+// to reach the log or the change looks like a regression in AxonHub.
+const antigravityRefusalBody = `{
+  "error": {
+    "code": 403,
+    "message": "Verify your account to continue.",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "VALIDATION_REQUIRED",
+        "domain": "cloudcode-pa.googleapis.com",
+        "metadata": {
+          "validation_error_message": "Verify your account to continue.",
+          "validation_url": "https://accounts.google.com/signin/continue"
+        }
+      }
+    ]
+  }
+}`
+
+func TestAntigravitySummaryReason_NamesTheUpstreamRefusal(t *testing.T) {
+	reason := antigravitySummaryReason([]byte(antigravityRefusalBody))
+
+	require.Contains(t, reason, "VALIDATION_REQUIRED", "the machine-readable reason must survive")
+	require.Contains(t, reason, "Verify your account", "the human-readable message must survive")
+}
+
+func TestAntigravitySummaryReason_FallsBackToTheBody(t *testing.T) {
+	require.Equal(t, "plain text failure", antigravitySummaryReason([]byte("plain text failure")))
+}
+
+// A refused summary must be reported, not swallowed. The checker falls back to
+// the model list so the channel still reports something, and this is what makes
+// that fallback visible.
+func TestAntigravityChecker_ReportsWhyTheSummaryFellBack(t *testing.T) {
+	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() == antigravityQuotaSummaryURL {
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(antigravityRefusalBody)),
+			}, nil
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{
+				"models": {"gemini-2.5-pro": {"displayName":"Gemini 2.5 Pro","quotaInfo":{"remainingFraction":0.5}}}
+			}`)),
+		}, nil
+	})})
+
+	checker := NewAntigravityQuotaChecker(httpClient)
+
+	quota, err := checker.CheckQuota(t.Context(), &ent.Channel{
+		Type: channel.TypeAntigravity,
+		Credentials: objects.ChannelCredentials{
+			APIKey: "refresh-token|project-id",
+			OAuth: &objects.OAuthCredentials{
+				AccessToken: "access-token",
+				ExpiresAt:   time.Now().Add(time.Hour),
+			},
+		},
+	})
+
+	// The fallback still produces data, so the console keeps working.
+	require.NoError(t, err)
+	require.NotEmpty(t, quota.RawData["models"], "the model list fallback should still report")
+
+	// And the reason is available to the log rather than being discarded. The
+	// transport error does not carry the status code, so the reason is what
+	// identifies the refusal.
+	_, summaryErr := checker.fetchAntigravityQuotaSummary(t.Context(), httpClient, "access-token", "project-id")
+	require.Error(t, summaryErr)
+	require.Contains(t, summaryErr.Error(), "VALIDATION_REQUIRED")
+	require.Contains(t, summaryErr.Error(), "Verify your account")
 }
 
 // A provider that does not report groups must keep merging duplicate windows, so
